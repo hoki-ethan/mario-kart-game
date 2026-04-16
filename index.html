@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Haunted Mine Racer</title>
+  <style>
+    body { margin: 0; background: #0a0a12; font-family: sans-serif; color: #fff; }
+    canvas { display: block; margin: 0 auto; }
+    h1 { text-align: center; padding: 8px 0; margin: 0; color: #ffcc66; }
+  </style>
+</head>
+<body>
+<h1>Haunted Mine Racer — Step 2: The Track</h1>
+<script src="https://unpkg.com/kaboom@3000.1.17/dist/kaboom.js"></script>
+<script>
+kaboom({
+  width: 900,
+  height: 600,
+  background: [10, 10, 18],
+});
+
+// ============================================================
+// WORLD SETUP
+// ============================================================
+const WORLD_W = 2600;
+const WORLD_H = 1700;
+const WALL_T = 40;
+
+// Dirt floor of the mine
+add([
+  rect(WORLD_W, WORLD_H),
+  pos(0, 0),
+  color(48, 38, 30),
+]);
+
+// Scattered rock texture (random dots for that mine-dirt feel)
+for (let i = 0; i < 300; i++) {
+  add([
+    rect(rand(2, 6), rand(2, 6)),
+    pos(rand(0, WORLD_W), rand(0, WORLD_H)),
+    color(70, 55, 40),
+  ]);
+}
+
+// ============================================================
+// WALLS (mine rock)
+// ============================================================
+function wall(x, y, w, h) {
+  return add([
+    rect(w, h),
+    pos(x, y),
+    color(85, 60, 40),
+    outline(3, rgb(30, 20, 10)),
+    area(),
+    "wall",
+  ]);
+}
+
+// Outer frame
+wall(0, 0, WORLD_W, WALL_T);
+wall(0, WORLD_H - WALL_T, WORLD_W, WALL_T);
+wall(0, 0, WALL_T, WORLD_H);
+wall(WORLD_W - WALL_T, 0, WALL_T, WORLD_H);
+
+// Inner island (the rock the track goes around)
+const IX = 500;
+const IY = 400;
+const IW = 1600;
+const IH = 900;
+wall(IX, IY, IW, WALL_T);
+wall(IX, IY + IH - WALL_T, IW, WALL_T);
+wall(IX, IY, WALL_T, IH);
+wall(IX + IW - WALL_T, IY, WALL_T, IH);
+
+// Fill the inside of the island with a darker color so it looks solid
+add([
+  rect(IW - WALL_T * 2, IH - WALL_T * 2),
+  pos(IX + WALL_T, IY + WALL_T),
+  color(30, 22, 15),
+]);
+
+// Glowing lanterns scattered around for spooky mine vibes
+function lantern(x, y) {
+  add([
+    circle(10),
+    pos(x, y),
+    color(255, 180, 60),
+    opacity(0.9),
+  ]);
+  add([
+    circle(22),
+    pos(x, y),
+    color(255, 180, 60),
+    opacity(0.15),
+  ]);
+}
+lantern(IX + 120, IY + 60);
+lantern(IX + IW - 120, IY + 60);
+lantern(IX + 120, IY + IH - 60);
+lantern(IX + IW - 120, IY + IH - 60);
+lantern(200, 200);
+lantern(WORLD_W - 200, 200);
+lantern(200, WORLD_H - 200);
+lantern(WORLD_W - 200, WORLD_H - 200);
+
+// ============================================================
+// START / FINISH LINE (checkered)
+// ============================================================
+const START_X = IX + IW / 2;
+const LINE_TOP = WALL_T;
+const LINE_BOT = IY;
+const LINE_H = LINE_BOT - LINE_TOP;
+const LINE_W = 30;
+
+// White base
+add([
+  rect(LINE_W, LINE_H),
+  pos(START_X - LINE_W / 2, LINE_TOP),
+  color(240, 240, 240),
+]);
+// Checkered squares
+const CHECK_SIZE = 15;
+for (let i = 0; i < LINE_H / CHECK_SIZE; i++) {
+  for (let j = 0; j < 2; j++) {
+    if ((i + j) % 2 === 0) {
+      add([
+        rect(CHECK_SIZE, CHECK_SIZE),
+        pos(START_X - LINE_W / 2 + j * CHECK_SIZE, LINE_TOP + i * CHECK_SIZE),
+        color(0, 0, 0),
+      ]);
+    }
+  }
+}
+// Invisible trigger area on top of it
+const startLine = add([
+  rect(LINE_W, LINE_H),
+  pos(START_X - LINE_W / 2, LINE_TOP),
+  area(),
+  opacity(0),
+  "startLine",
+]);
+
+// ============================================================
+// CHECKPOINT (half-way around the track, far side)
+// ============================================================
+const CHECK_TOP = IY + IH;
+const CHECK_BOT = WORLD_H - WALL_T;
+const CHECK_H = CHECK_BOT - CHECK_TOP;
+const checkpoint = add([
+  rect(LINE_W, CHECK_H),
+  pos(START_X - LINE_W / 2, CHECK_TOP),
+  color(80, 255, 100),
+  opacity(0.2),
+  area(),
+  "checkpoint",
+]);
+
+// ============================================================
+// KART
+// ============================================================
+const kart = add([
+  rect(44, 26),
+  pos(START_X + 80, (LINE_TOP + LINE_BOT) / 2),
+  anchor("center"),
+  rotate(0),
+  color(255, 80, 80),
+  // Tiny square collider at the center — small enough that rotating the kart
+  // never makes its bounding box extend into a wall, so no snag-and-stuck bug.
+  area({ shape: new Rect(vec2(-7, -7), 14, 14) }),
+  "kart",
+]);
+
+const nose = add([
+  rect(8, 8),
+  pos(kart.pos),
+  anchor("center"),
+  rotate(0),
+  color(255, 255, 255),
+]);
+
+// ============================================================
+// DRIVING
+// ============================================================
+let speed = 0;
+const MAX_SPEED = 440;
+const REVERSE_SPEED = 180;
+const ACCEL = 700;
+const BRAKE = 900;
+const FRICTION = 120;
+const TURN_SPEED = 240;
+
+// ============================================================
+// LAP TRACKING
+// ============================================================
+let lap = 1;
+const TOTAL_LAPS = 3;
+let hasCheckpoint = false;
+let wasOnStart = false;
+let wasOnCheck = false;
+let finished = false;
+
+// Power-up button state
+let powerupFlash = 0;
+onKeyPress("shift", () => { powerupFlash = 0.4; });
+
+// ============================================================
+// MAIN UPDATE LOOP
+// ============================================================
+onUpdate(() => {
+  if (powerupFlash > 0) powerupFlash -= dt();
+
+  if (finished) {
+    // After finishing, let the kart drift to a stop
+    if (speed > 0) speed = Math.max(0, speed - FRICTION * dt());
+    if (speed < 0) speed = Math.min(0, speed + FRICTION * dt());
+  } else {
+    // Accelerate / reverse
+    if (isKeyDown("w")) {
+      speed += ACCEL * dt();
+    } else if (isKeyDown("s")) {
+      if (speed > 0) speed -= BRAKE * dt();
+      else speed -= ACCEL * dt();
+    } else {
+      if (speed > 0) speed = Math.max(0, speed - FRICTION * dt());
+      if (speed < 0) speed = Math.min(0, speed + FRICTION * dt());
+    }
+    if (speed > MAX_SPEED) speed = MAX_SPEED;
+    if (speed < -REVERSE_SPEED) speed = -REVERSE_SPEED;
+
+    // Steering (arrow keys, right hand)
+    if (Math.abs(speed) > 10) {
+      const steerStrength = 0.4 + 0.6 * Math.abs(speed) / MAX_SPEED;
+      const turnAmount = TURN_SPEED * dt() * steerStrength;
+      if (isKeyDown("left")) kart.angle -= turnAmount;
+      if (isKeyDown("right")) kart.angle += turnAmount;
+    }
+  }
+
+  // Move — with wall sliding (check X and Y separately).
+  // Manual AABB collision: kart is treated as a small square of radius KART_R.
+  const rad = deg2rad(kart.angle);
+  const dx = Math.cos(rad) * speed * dt();
+  const dy = Math.sin(rad) * speed * dt();
+  const walls = get("wall");
+  const KART_R = 10;
+
+  function wallAt(x, y) {
+    for (const w of walls) {
+      if (x + KART_R > w.pos.x &&
+          x - KART_R < w.pos.x + w.width &&
+          y + KART_R > w.pos.y &&
+          y - KART_R < w.pos.y + w.height) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Bouncy walls! If the next X or Y step would be inside a wall, don't move
+  // into it — instead reflect the kart's direction like a billiard ball.
+  const hitX = wallAt(kart.pos.x + dx, kart.pos.y);
+  const hitY = wallAt(kart.pos.x, kart.pos.y + dy);
+
+  if (!hitX) kart.pos.x += dx;
+  if (!hitY) kart.pos.y += dy;
+
+  if (hitX && hitY) {
+    // corner smash — spin around
+    kart.angle += 180;
+    speed *= 0.6;
+  } else if (hitX) {
+    // vertical wall — reflect left/right
+    kart.angle = 180 - kart.angle;
+    speed *= 0.8;
+  } else if (hitY) {
+    // horizontal wall — reflect up/down
+    kart.angle = -kart.angle;
+    speed *= 0.8;
+  }
+
+  // Glue the nose indicator to the front of the kart
+  const noseDist = 22;
+  nose.pos.x = kart.pos.x + Math.cos(rad) * noseDist;
+  nose.pos.y = kart.pos.y + Math.sin(rad) * noseDist;
+  nose.angle = kart.angle;
+
+  // Camera follows the kart, clamped to world bounds
+  const cx = Math.max(width() / 2, Math.min(WORLD_W - width() / 2, kart.pos.x));
+  const cy = Math.max(height() / 2, Math.min(WORLD_H - height() / 2, kart.pos.y));
+  camPos(cx, cy);
+
+  // Checkpoint detection (far side of track)
+  const onCheck = kart.isColliding(checkpoint);
+  if (onCheck && !wasOnCheck) hasCheckpoint = true;
+  wasOnCheck = onCheck;
+
+  // Start/finish line detection
+  const onStart = kart.isColliding(startLine);
+  if (onStart && !wasOnStart && hasCheckpoint && !finished) {
+    lap++;
+    hasCheckpoint = false;
+    if (lap > TOTAL_LAPS) {
+      finished = true;
+    }
+  }
+  wasOnStart = onStart;
+});
+
+// ============================================================
+// UI (fixed on screen, does not move with camera)
+// ============================================================
+const lapText = add([
+  text("LAP 1 / 3", { size: 32 }),
+  pos(20, 20),
+  color(255, 220, 100),
+  fixed(),
+]);
+lapText.onUpdate(() => {
+  if (finished) {
+    lapText.text = "FINISH!";
+    lapText.color = rgb(100, 255, 100);
+  } else {
+    lapText.text = `LAP ${lap} / ${TOTAL_LAPS}`;
+  }
+});
+
+// Checkpoint status ("next: checkpoint" / "next: finish line")
+const objText = add([
+  text("Next: green checkpoint", { size: 16 }),
+  pos(20, 62),
+  color(180, 255, 180),
+  fixed(),
+]);
+objText.onUpdate(() => {
+  if (finished) objText.text = "";
+  else if (hasCheckpoint) objText.text = "Next: checkered finish line";
+  else objText.text = "Next: green checkpoint";
+});
+
+// Controls help
+add([
+  text("Left hand: W go  S brake  SHIFT power-up    Right hand: arrows turn", { size: 13 }),
+  pos(20, 570),
+  color(200, 200, 200),
+  fixed(),
+]);
+
+// Power-up button indicator (top right)
+add([
+  rect(150, 32),
+  pos(width() - 160, 15),
+  color(60, 60, 70),
+  outline(2, rgb(120, 120, 140)),
+  fixed(),
+]);
+const powerLabel = add([
+  text("POWER-UP", { size: 16 }),
+  pos(width() - 145, 24),
+  anchor("left"),
+  color(255, 255, 255),
+  fixed(),
+]);
+powerLabel.onUpdate(() => {
+  powerLabel.color = powerupFlash > 0 ? rgb(255, 80, 80) : rgb(255, 255, 255);
+});
+</script>
+</body>
+</html>
