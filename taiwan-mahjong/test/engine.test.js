@@ -193,3 +193,52 @@ test('practice problems are well formed', () => {
     }
   }
 });
+
+test('drawChance is a hypergeometric "at least one" chance', () => {
+  assert.equal(M.drawChance(0, 80, 5), 0);
+  assert.ok(Math.abs(M.drawChance(8, 80, 1) - 0.1) < 1e-9);
+  // 1 - (72/80)(71/79)
+  assert.ok(Math.abs(M.drawChance(8, 80, 2) - (1 - (72 / 80) * (71 / 79))) < 1e-9);
+  assert.equal(M.drawChance(5, 5, 1), 1);
+  const a = M.analyze(tiles('123m456m789m123p45p99s'));
+  assert.equal(a.unseen, 136 - 16);
+});
+
+test('simulated tables: an opponent is tenpai and my hand has both safe and unsafe tiles', () => {
+  const random = M.rng(3);
+  for (let i = 0; i < 5; i++) {
+    const tb = M.simulateTable(random);
+    assert.equal(tb.me.length, 17);
+    const target = tb.players.find(p => p.seat === tb.target);
+    assert.ok(target.waits.length > 0);
+    assert.deepEqual(target.waits, M.waits(target.hand, 0));
+    assert.equal(target.hand.length, 16);
+    const all = M.toCounts(tb.me.concat(tb.myRiver, ...tb.players.map(p => p.river.concat(p.hand))));
+    assert.ok(all.every(x => x <= 4));
+    const danger = new Set(tb.players.flatMap(p => p.waits));
+    const kinds = new Set(tb.me);
+    assert.ok([...kinds].some(t => danger.has(t)));
+    assert.ok([...kinds].some(t => !danger.has(t)));
+  }
+});
+
+test('guessWaits: impossible tiles get nothing, discarded tiles get less, probabilities are sane', () => {
+  const river = tiles('1z 2z 9m 1p 5s 9p'.replace(/ /g, ''));
+  const visible = M.toCounts(river.concat(tiles('5555z')));
+  const g = M.guessWaits({ river, visible, random: M.rng(8), samples: 600 });
+  assert.equal(g.prob[tiles('5z')[0]], 0); // all four 中 are visible
+  assert.ok(g.prob.every(p => p >= 0 && p <= 1));
+  // He threw away a 5條, so 5條 should be less likely than an untouched middle tile like 5萬
+  assert.ok(g.prob[tiles('5s')[0]] < g.prob[tiles('5m')[0]]);
+  // A suit he calls from looks more dangerous
+  const melded = M.guessWaits({ river, melds: [{ type: 'pung', tile: tiles('7p')[0] }, { type: 'chow', tile: tiles('2p')[0] }], visible: M.toCounts(river.concat(tiles('777p234p'))), random: M.rng(8), samples: 600 });
+  const pinShare = p => p.slice(9, 18).reduce((a, b) => a + b, 0);
+  assert.ok(pinShare(melded.prob) > pinShare(g.prob));
+});
+
+test('tenpaiChance grows with turns and with called melds', () => {
+  assert.equal(M.tenpaiChance(0, 0), 0);
+  assert.ok(M.tenpaiChance(10, 0) > M.tenpaiChance(6, 0));
+  assert.ok(M.tenpaiChance(8, 2) > M.tenpaiChance(8, 0));
+  assert.ok(M.tenpaiChance(40, 0) <= 1);
+});

@@ -23,6 +23,7 @@
   </div>
   <nav class="tabs" role="tablist" aria-label="功能">
     <button type="button" role="tab" id="tab-analyze" data-act="tab" data-tab="analyze" aria-controls="view-analyze">牌效</button>
+    <button type="button" role="tab" id="tab-defense" data-act="tab" data-tab="defense" aria-controls="view-defense">防守</button>
     <button type="button" role="tab" id="tab-score" data-act="tab" data-tab="score" aria-controls="view-score">台數</button>
     <button type="button" role="tab" id="tab-drill" data-act="tab" data-tab="drill" aria-controls="view-drill">練習</button>
     <button type="button" role="tab" id="tab-guide" data-act="tab" data-tab="guide" aria-controls="view-guide">小抄</button>
@@ -54,6 +55,24 @@
       </details>
     </div>
     <div class="panel result" id="an-result" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ============ 防守 ============ -->
+<section class="view" id="view-defense" role="tabpanel" aria-labelledby="tab-defense" hidden>
+  <div class="view-head">
+    <h2>他聽什麼？這張能打嗎？</h2>
+    <p>看別人的河猜他在等什麼，挑一張不會放槍的牌。「模擬牌局」讓電腦四家照牌效打到有人聽牌，換你出牌；「自己輸入」把實際牌局的河和吃碰輸進來，算每張牌的危險度。</p>
+  </div>
+  <div class="seg" id="df-mode" role="group" aria-label="防守模式"></div>
+  <div id="df-sim" class="panel drill" aria-live="polite"></div>
+  <div id="df-manual" class="split" hidden>
+    <div class="panel">
+      <div class="seg wrap" id="dm-target" role="group" aria-label="點牌放到哪裡"></div>
+      <div id="dm-builder" class="builder"></div>
+      <div id="dm-palette" class="palette"></div>
+    </div>
+    <div class="panel result" id="dm-result" aria-live="polite"></div>
   </div>
 </section>
 
@@ -174,11 +193,22 @@
         <li><b>台灣沒有振聽。</b>別家自己打過的牌，他照樣能胡，只是機率比較低，不是絕對安全。</li>
         <li><b>跟打最安全。</b>剛打出來、大家都沒胡的那張，有過水規則的桌，放過它的人在下次摸牌前不能胡這張。</li>
         <li><b>熟張比生張安全。</b>場上已經出現三張的牌，最多只能被單吊。整場沒出現過的中張（4、5、6），後半場最危險。</li>
+        <li><b>看「壁」。</b>四張七萬都看得到時，沒人能用七萬去等八萬、九萬，這兩張只剩單吊、對碰會放槍。</li>
         <li><b>看誰在做一色。</b>有人整場都不打某一門，那門很可能是他的清一色、混一色，別餵。一直碰的人小心碰碰胡。</li>
         <li><b>別餵下家吃。</b>下家只能吃你的牌，看他吃過什麼，別打他要的那一路。</li>
         <li><b>打不贏就收手。</b>自己還差兩步以上、別人看起來已經聽了，就改打安全牌。少輸就是贏。</li>
         <li><b>莊家連越多越貴。</b>放槍給連莊的莊家要多付莊家台和連莊台，對他打牌要特別小心。</li>
       </ol>
+    </article>
+
+    <article class="panel guide-card">
+      <h3>機率從哪來</h3>
+      <ul>
+        <li><b>進張機率：</b>看不到的牌（牌牆加別人手上）裡，有用的牌佔多少。別人手上的牌也算進去，所以是估計值。</li>
+        <li><b>別人聽了沒：</b>電腦照牌效打 1,500 局統計，打出 6 張時約 4% 已聽牌，8 張 10%，10 張 17%，12 張 25%，14 張 34%。這是不吃碰的打法；真人會吃碰，有吃碰的人要再往上加。</li>
+        <li><b>他聽什麼：</b>從看不到的牌隨機組出 1,000 手「他可能的聽牌手」。他一直丟的那一門、他打過的牌附近都算少一點，再數每張牌讓他胡的比例。</li>
+        <li><b>準不準：</b>用 300 局模擬牌局測，照模型挑最安全的牌打，放槍率 0.7%；隨便打是 9.3%。但要猜中他到底聽哪張很難，模型前 5 名裡有真的聽牌的只有約 4 成。這個工具最適合用來<b>挑安全牌</b>，不是算準他聽什麼。</li>
+      </ul>
     </article>
 
     <article class="panel guide-card">

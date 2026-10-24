@@ -374,7 +374,7 @@ button.tile:disabled { opacity: 0.3; cursor: not-allowed; }
 .drow-head b { font-family: var(--font-display); font-size: 18px; }
 .drow-count { text-align: right; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .drow-count b { display: block; font-size: 24px; }
-.drow-count span { font-size: 12px; color: var(--muted); }
+.drow-count span { display: block; font-size: 12px; color: var(--muted); }
 .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--good); color: var(--surface); font-weight: 700; }
 .badge.warn { background: var(--warn); }
 
@@ -449,6 +449,41 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
 .money td, .money th { text-align: right; font-variant-numeric: tabular-nums; }
 .money td:first-child, .money th:first-child { text-align: left; }
 
+/* ============ defense ============ */
+.table-info { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rivers { display: grid; gap: 10px; }
+.river-row { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.river-row.target { background: var(--hot-soft); }
+.river-head { display: grid; gap: 2px; }
+.river-head b { font-family: var(--font-display); font-size: 18px; }
+.badge.hot { background: var(--hot); }
+.reveal { display: grid; gap: 10px; }
+.reveal-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+
+.heat-grid { display: grid; gap: 8px; }
+.heat-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.heat { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; width: calc(var(--tw) * 0.8); }
+.heat i { font-style: normal; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.heat.mid i { color: var(--warn); font-weight: 700; }
+.heat.high i { color: var(--hot); font-weight: 700; }
+.heat.dead .tile { opacity: 0.35; }
+.heat.actual .tile { box-shadow: 0 2px 0 var(--hot), 0 0 0 2px var(--hot); }
+.meter { display: block; width: 100%; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.meter b { display: block; height: 100%; background: var(--hot); }
+
+.dlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dl-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 6px 10px; border-radius: 10px; background: var(--bg); }
+.dl-row.hit { background: var(--hot-soft); }
+.dl-row.chosen { outline: 2px solid var(--focus); outline-offset: 1px; }
+.dl-main { display: grid; gap: 4px; min-width: 0; }
+.dl-main .meter { height: 6px; }
+.dl-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.dl-tags span { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.dl-pct { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; text-align: right; min-width: 3.2em; }
+.result-body { display: grid; gap: 14px; }
+.computing { opacity: 0.55; }
+.loading { padding: 30px 0; text-align: center; color: var(--muted); font-family: var(--font-display); font-size: 20px; }
+
 .foot { color: var(--muted); font-size: 13px; text-align: center; }
 
 .toast {
@@ -471,8 +506,11 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
   :root { --tw: 31px; --th: 42px; }
   .brand h1 { font-size: 28px; }
   .tabs { width: 100%; justify-content: space-between; }
-  .tabs button { flex: 1; padding: 7px 0; font-size: 17px; }
+  .tabs button { flex: 1; padding: 7px 0; font-size: 16px; }
+  .river-row { grid-template-columns: 1fr; gap: 6px; }
+  .river-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .view-head h2 { font-size: 24px; }
+  .verdict .big { font-size: 30px; }
   .panel { padding: 14px 12px; }
   .palette { padding: 10px 8px; }
   .tile.sm { --tw: 22px; --th: 30px; }
@@ -480,6 +518,7 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
   .drow { grid-template-columns: auto minmax(0, 1fr); }
   .drow-count { grid-column: 2; text-align: left; display: flex; gap: 6px; align-items: baseline; }
   .drow-count b { display: inline; font-size: 18px; }
+  .drow-count span { display: inline; }
 }
 @media (max-width: 400px) {
   :root { --tw: 29px; --th: 39px; }
