@@ -267,3 +267,31 @@ test('tenpaiChance grows with turns and with called melds', () => {
   assert.ok(M.tenpaiChance(8, 9) >= M.tenpaiChance(8, 3));
   assert.ok(M.tenpaiChance(40, 0) <= 1);
 });
+
+test('reasons: wait shapes, the wall and clues from the river', () => {
+  const river = tiles('1z9m2p4s5m'.replace(/ /g, ''));
+  const visible = M.toCounts(river.concat(tiles('7777m')));
+  const keys = t => M.tileClues(tiles(t)[0], { river, visible }).map(c => c.key);
+  // All four 七萬 visible: 八萬 can only be won by 單吊 / 對碰
+  const eight = M.waitShapes(tiles('8m')[0], visible);
+  assert.deepEqual(eight.filter(s => s.ok).map(s => s.kind), ['single', 'pair']);
+  assert.ok(keys('8m').includes('wall'));
+  assert.ok(keys('8m').includes('nearEarly')); // 九萬 was thrown early
+  assert.ok(keys('8m').includes('suji'));      // 五萬 is three away
+  // 六萬 still has the 45萬 two-sided shape, and sits next to his latest discard 五萬
+  assert.ok(!keys('6m').includes('wall'));
+  assert.ok(keys('6m').includes('nearLatest'));
+  assert.ok(keys('9m').includes('ownDiscard'));
+  assert.ok(keys('3z').includes('honor'));
+  // 條子: he threw one; 萬子 none would be untouchedSuit
+  assert.ok(M.tileClues(tiles('5m')[0], { river: tiles('1z2z'), visible: M.toCounts([]) }).some(c => c.key === 'untouchedSuit'));
+  // 1 copy left -> 單吊 only
+  const v2 = M.toCounts(tiles('555p'));
+  assert.ok(M.tileClues(tiles('5p')[0], { river: [], visible: v2 }).some(c => c.key === 'lastCopy'));
+  // What a discard says
+  const d = M.discardClues(river, river.length - 1);
+  assert.ok(d.latest);
+  assert.deepEqual(d.neighbours.map(M.tileName), ['三萬', '四萬', '六萬', '七萬']);
+  assert.deepEqual(d.suji.map(M.tileName), ['二萬', '八萬']);
+  assert.deepEqual(M.riverSuits(river), [2, 1, 1, 1]);
+});

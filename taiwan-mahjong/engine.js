@@ -951,6 +951,13 @@
     return out;
   }
 
+  // Same suit, one or two steps apart
+  function closeBy(a, b) {
+    if (a < 0 || b < 0 || a >= 27 || b >= 27 || suitOf(a) !== suitOf(b)) return false;
+    const d = Math.abs(a - b);
+    return d === 1 || d === 2;
+  }
+
   function touches(c, t) {
     if (t >= 27) return c[t] > 0;
     const base = suitOf(t) * 9;
@@ -1000,6 +1007,104 @@
     return { prob, suitWeight: weight };
   }
 
+  // ============================================================
+  // WHY (讀牌理由)
+  // ============================================================
+  // Measured on 600 simulated tables with calling bots: how a clue changes the
+  // chance that a tile is the tenpai player's winning tile. An average tile is
+  // 4.9%; each factor is relative to the tiles the clue is compared with.
+  const CLUE_FACTORS = {
+    ownDiscard: 0.01,   // he discarded this tile (vs. tiles he did not)
+    honor: 0.09,        // honors (vs. an average tile)
+    terminal: 0.67,     // 1 and 9
+    middle: 1.6,        // 3 to 7
+    nearLatest: 2.0,    // 1-2 steps from his latest discard
+    nearEarly: 0.6,     // he discarded a neighbour in the first half of his river
+    suji: 0.7,          // he discarded the tile 3 steps away (筋)
+    untouchedSuit: 1.7, // he has not discarded this suit at all
+    heavySuit: 0.4,     // he has discarded 5+ of this suit
+    wall: 0.06,         // every chow that could wait on it is blocked by visible tiles (壁)
+    noCopy: 0.25,       // all other copies are visible: no 單吊 / 對碰
+    lastCopy: 0.5,      // one copy left: 單吊 only
+  };
+
+  // Every shape that could win on tile t, and whether what I can see rules it out
+  function waitShapes(t, visible) {
+    const left = x => Math.max(0, 4 - (visible[x] || 0));
+    const shapes = [];
+    const seq = (a, b, kind) => shapes.push({
+      kind, tiles: [a, b], ok: left(a) > 0 && left(b) > 0, blockedBy: [a, b].filter(x => left(x) === 0),
+    });
+    if (t < 27) {
+      const r = t % 9;
+      if (r >= 2) seq(t - 2, t - 1, r === 2 ? 'edge' : 'twoSided');
+      if (r <= 6) seq(t + 1, t + 2, r === 6 ? 'edge' : 'twoSided');
+      if (r >= 1 && r <= 7) seq(t - 1, t + 1, 'closed');
+    }
+    shapes.push({ kind: 'single', tiles: [t], ok: left(t) >= 1, blockedBy: left(t) >= 1 ? [] : [t] });
+    shapes.push({ kind: 'pair', tiles: [t, t], ok: left(t) >= 2, blockedBy: left(t) >= 2 ? [] : [t] });
+    return shapes;
+  }
+
+  // Which measured clues apply to tile t, given his river and what I can see
+  function tileClues(t, o) {
+    const river = o.river;
+    const out = [];
+    const add = (key, extra) => out.push(Object.assign({ key, factor: CLUE_FACTORS[key] }, extra));
+    const discarded = river.includes(t);
+    if (discarded) add('ownDiscard');
+    if (t >= 27) add('honor');
+    else {
+      const r = t % 9;
+      if (r === 0 || r === 8) add('terminal');
+      else if (r >= 2 && r <= 6) add('middle');
+      const latest = river[river.length - 1];
+      if (closeBy(t, latest)) add('nearLatest', { tiles: [latest] });
+      if (!discarded) {
+        const early = unique(river.slice(0, Math.ceil(river.length / 2)).filter(x => closeBy(x, t)));
+        if (early.length) add('nearEarly', { tiles: early });
+        const suji = unique(river.filter(x => x < 27 && suitOf(x) === suitOf(t) && Math.abs(x - t) === 3));
+        if (suji.length) add('suji', { tiles: suji });
+      }
+      const sameSuit = river.filter(x => suitOf(x) === suitOf(t)).length;
+      if (sameSuit === 0) add('untouchedSuit');
+      else if (sameSuit >= 5) add('heavySuit', { count: sameSuit });
+      const shapes = waitShapes(t, o.visible);
+      const blocked = shapes.filter(sh => sh.tiles.length === 2 && sh.tiles[0] !== sh.tiles[1] && !sh.ok);
+      if (blocked.length && blocked.length === shapes.filter(sh => sh.kind !== 'single' && sh.kind !== 'pair').length) {
+        add('wall', { tiles: unique(blocked.flatMap(sh => sh.blockedBy)) });
+      }
+    }
+    const left = Math.max(0, 4 - (o.visible[t] || 0));
+    if (left === 0) add('noCopy');
+    else if (left === 1) add('lastCopy');
+    return out;
+  }
+
+  // What one tile in his river tells you
+  function discardClues(river, index) {
+    const d = river[index];
+    const info = {
+      tile: d, latest: index === river.length - 1, early: index < Math.ceil(river.length / 2),
+      neighbours: [], suji: [],
+    };
+    if (d < 27) {
+      const r = d % 9;
+      for (const k of [-2, -1, 1, 2]) if (r + k >= 0 && r + k < 9) info.neighbours.push(d + k);
+      for (const k of [-3, 3]) if (r + k >= 0 && r + k < 9) info.suji.push(d + k);
+    }
+    return info;
+  }
+
+  // How many of each suit (萬 筒 條 字) he has discarded
+  function riverSuits(river) {
+    const n = [0, 0, 0, 0];
+    for (const t of river) n[suitOf(t)]++;
+    return n;
+  }
+
+  function unique(list) { return [...new Set(list)]; }
+
   // Chance an opponent is already tenpai, by melds called (row: 0, 1, 2, 3+) and
   // discards made (column), measured from 2,400 bot games while still going.
   const TENPAI_TABLE = [
@@ -1019,7 +1124,7 @@
     toCounts, fromCounts, sortTiles, meldTiles, isValidChowStart,
     shanten, shantenRegular, shantenLigu, remainingCounts, usefulTiles, waits, analyze,
     unseenTotal, drawChance, SEATS, valueHonors, botDiscard, botPung, botChow, simulateTable, tableVisible,
-    guessWaits, shapeWaits, tenpaiChance,
+    guessWaits, shapeWaits, tenpaiChance, CLUE_FACTORS, waitShapes, tileClues, discardClues, riverSuits,
     defaultRules, decompositions, validateWin, scoreHand, dealerTai, settle,
     rng, discardProblem, waitProblem,
   };

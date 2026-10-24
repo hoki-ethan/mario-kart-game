@@ -447,6 +447,8 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
 .rules input { width: 4.2em; }
 .rules tr.changed td:first-child { color: var(--accent); }
 .money td, .money th { text-align: right; font-variant-numeric: tabular-nums; }
+.clue-table td:nth-child(2) { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.clue-table td:nth-child(3) { color: var(--muted); }
 .money td:first-child, .money th:first-child { text-align: left; }
 
 /* ============ defense ============ */
@@ -485,6 +487,28 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
 .dl-pct { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; text-align: right; min-width: 3.2em; }
 .result-body { display: grid; gap: 14px; }
 .computing { opacity: 0.55; }
+
+/* reasons */
+.clue { font-size: 11px; padding: 0 6px; border-radius: 999px; white-space: nowrap; }
+.clue.up { background: var(--hot-soft); color: var(--hot); }
+.clue.down { background: var(--good-soft); color: var(--good); }
+.dl-tags .clue { border: 0; }
+.dl-row .why { grid-column: 1 / -1; }
+.why summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.why[open] { display: grid; gap: 8px; padding: 4px 0 6px; }
+.shapes, .clue-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.shapes li, .clue-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.shapes .mark { font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 4px; }
+.shapes li.ok .mark { background: var(--hot-soft); color: var(--hot); }
+.shapes li.no .mark { background: var(--good-soft); color: var(--good); }
+.shapes li.no .shape-name, .shapes li.no .tiles { opacity: 0.5; }
+.shape-name { min-width: 2.5em; font-weight: 700; }
+.clue-factor { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); min-width: 4.5em; }
+.clue-list li > span:last-child { flex: 1 1 16em; min-width: 0; }
+.read-box { display: grid; gap: 10px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--line); }
+.hint-note { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+.hint-note ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.hint-title { font-weight: 700; font-family: var(--font-display); font-size: 17px; }
 .loading { padding: 30px 0; text-align: center; color: var(--muted); font-family: var(--font-display); font-size: 20px; }
 
 .foot { color: var(--muted); font-size: 13px; text-align: center; }
