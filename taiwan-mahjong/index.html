@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>大殺四方麻將特訓</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+
+<header class="top">
+  <div class="brand">
+    <span class="tile hon red brand-tile" role="img" aria-label="中"><span class="hon-ch">中</span></span>
+    <div>
+      <h1>大殺四方</h1>
+      <p>台灣十六張麻將特訓</p>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="功能">
+    <button type="button" role="tab" id="tab-analyze" data-act="tab" data-tab="analyze" aria-controls="view-analyze">牌效</button>
+    <button type="button" role="tab" id="tab-score" data-act="tab" data-tab="score" aria-controls="view-score">台數</button>
+    <button type="button" role="tab" id="tab-drill" data-act="tab" data-tab="drill" aria-controls="view-drill">練習</button>
+    <button type="button" role="tab" id="tab-guide" data-act="tab" data-tab="guide" aria-controls="view-guide">小抄</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ============ 牌效 ============ -->
+<section class="view" id="view-analyze" role="tabpanel" aria-labelledby="tab-analyze">
+  <div class="view-head">
+    <h2>這手該打哪張？</h2>
+    <p>放進你的手牌，算出每一張打出去之後離聽牌多遠、有幾張牌能進。剛摸完牌放 17 張，等摸牌時放 16 張。</p>
+  </div>
+  <div class="split">
+    <div class="panel">
+      <div class="seg" id="an-target" role="group" aria-label="點牌放到哪裡"></div>
+      <div id="an-builder" class="builder"></div>
+      <div id="an-palette" class="palette"></div>
+      <details class="code-entry">
+        <summary>用代碼輸入</summary>
+        <form id="an-code-form" class="code-form">
+          <label class="sr" for="an-code">手牌代碼</label>
+          <input id="an-code" autocomplete="off" spellcheck="false" placeholder="13456m246779p3458s55z">
+          <button type="submit" class="btn">載入</button>
+        </form>
+        <p class="hint">m 萬、p 筒、s 條；z 字牌：1 東 2 南 3 西 4 北 5 中 6 發 7 白。</p>
+        <p class="hint error" id="an-code-error" hidden></p>
+      </details>
+    </div>
+    <div class="panel result" id="an-result" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ============ 台數 ============ -->
+<section class="view" id="view-score" role="tabpanel" aria-labelledby="tab-score" hidden>
+  <div class="view-head">
+    <h2>胡了！算台算錢</h2>
+    <p>擺出胡牌時的手牌、胡的那張、吃碰槓和花，選好狀況，台數跟每家要付多少一次算好。台數照「小抄」裡的規則，可以改成你家的。</p>
+  </div>
+  <div class="split">
+    <div class="panel">
+      <div class="seg wrap" id="sc-target" role="group" aria-label="點牌放到哪裡"></div>
+      <div id="sc-builder" class="builder"></div>
+      <div id="sc-palette" class="palette"></div>
+      <div id="sc-conds" class="conds"></div>
+      <div class="stakes">
+        <div class="stake-inputs">
+          <label for="sc-base">底</label>
+          <input id="sc-base" type="number" inputmode="numeric" min="0" step="10">
+          <label for="sc-tai">每台</label>
+          <input id="sc-tai" type="number" inputmode="numeric" min="0" step="10">
+        </div>
+        <div class="chips" id="sc-presets" role="group" aria-label="常見底台"></div>
+      </div>
+    </div>
+    <div class="panel result" id="sc-result" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ============ 練習 ============ -->
+<section class="view" id="view-drill" role="tabpanel" aria-labelledby="tab-drill" hidden>
+  <div class="view-head">
+    <h2>每天十題</h2>
+    <p>「打哪張」練牌效，「聽什麼」練看聽牌。清一色聽牌是牌桌上最常算錯的地方，十二月前練到秒答。</p>
+  </div>
+  <div class="panel drill">
+    <div class="drill-top">
+      <div class="seg" id="dr-mode" role="group" aria-label="練習種類"></div>
+      <div class="seg" id="dr-flush" role="group" aria-label="聽牌題型"></div>
+    </div>
+    <p class="stats" id="dr-stats"></p>
+    <div id="dr-body" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ============ 小抄 ============ -->
+<section class="view" id="view-guide" role="tabpanel" aria-labelledby="tab-guide" hidden>
+  <div class="view-head">
+    <h2>上桌前的小抄</h2>
+    <p>台灣麻將各家規則差很多。先看「開打前先問」，回家第一圈就問清楚。</p>
+  </div>
+
+  <div class="guide">
+    <article class="panel guide-card">
+      <h3>開打前先問</h3>
+      <ul class="checks">
+        <li>底多少、一台多少？（例如 100／20）</li>
+        <li>連莊、拉莊怎麼算？莊家台在什麼時候算？</li>
+        <li>花有沒有算台？只算正花，還是每張都算？</li>
+        <li>嚦咕嚦咕、八仙過海、七搶一、天胡地胡各幾台？</li>
+        <li>槓有沒有另外收錢？</li>
+        <li>詐胡、相公怎麼罰？</li>
+        <li>有沒有過水？海底留幾墩？</li>
+      </ul>
+    </article>
+
+    <article class="panel guide-card wide">
+      <div class="card-head">
+        <h3>台數表（你家的規則）</h3>
+        <button type="button" class="btn ghost" data-act="rules-reset">恢復常見規則</button>
+      </div>
+      <p class="hint">數字可以直接改，存在這台裝置上，「台數」頁會照這裡算。設成 0 就是不算這項。</p>
+      <div class="table-wrap">
+        <table class="rules">
+          <thead><tr><th scope="col">項目</th><th scope="col">台</th><th scope="col">說明</th></tr></thead>
+          <tbody id="rules-body"></tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="panel guide-card">
+      <h3>看錢打牌</h3>
+      <p>胡一次收 <b>底 ＋ 台數 × 每台</b>。底大台小的桌，大牌跟小牌差不多錢，<b>能胡就胡</b>；台大的桌，值得多等幾巡做大。</p>
+      <div class="table-wrap">
+        <table class="money" id="money-table"></table>
+      </div>
+      <p class="hint">用的是「台數」頁的底台，放槍給你、不含莊家台。</p>
+    </article>
+
+    <article class="panel guide-card">
+      <h3>牌桌流程</h3>
+      <ul>
+        <li>一副 144 張：萬、筒、條各 36，字牌 28（東南西北中發白），花 8（春夏秋冬梅蘭竹菊）。</li>
+        <li>每人 16 張，莊家先摸。胡牌是 5 組（順子或刻子）加 1 對，共 17 張。</li>
+        <li>摸到花馬上亮出來，從牌尾補一張。</li>
+        <li><b>吃</b>只能吃上家；<b>碰、槓</b>誰打的都行。同時有人要：胡 ＞ 碰槓 ＞ 吃。</li>
+        <li>兩家胡同一張：照輪序離放槍的人最近的那家胡（截胡）。</li>
+        <li>莊家胡牌或流局就連莊，閒家胡牌就換下一家當莊。</li>
+        <li>莊家的門風是東，下家南、對家西、上家北。</li>
+      </ul>
+    </article>
+
+    <article class="panel guide-card">
+      <h3>進攻：牌效基本功</h3>
+      <ol>
+        <li><b>先比向聽，再比進張。</b>先選離聽牌最近的打法，一樣近就選進張張數多的。「牌效」頁就是在算這個。</li>
+        <li><b>兩面最好。</b>34 等 2、5，有 8 張；嵌張 35 等 4、邊張 12 等 3，都只有 4 張。</li>
+        <li><b>手上留六塊。</b>要 5 組加 1 對，所以面子、搭子、對子湊 6 塊剛好。塊太多時，先拆邊張、嵌張。</li>
+        <li><b>孤張字先走。</b>客風（不是圈風也不是門風）最沒用，最先打。中發白和自己的風能碰到才有台，場上已經出過一張就別留。</li>
+        <li><b>門清很值錢。</b>門清 1 台，門清自摸 3 台。牌好的時候別隨便吃碰；牌差、落後的時候，吃碰換速度也合理。</li>
+        <li><b>聽牌選好胡的。</b>同樣張數，選別人比較會打出來的：字牌、1、9 比中張好等。</li>
+      </ol>
+    </article>
+
+    <article class="panel guide-card">
+      <h3>防守：別當放槍王</h3>
+      <ol>
+        <li><b>台灣沒有振聽。</b>別家自己打過的牌，他照樣能胡，只是機率比較低，不是絕對安全。</li>
+        <li><b>跟打最安全。</b>剛打出來、大家都沒胡的那張，有過水規則的桌，放過它的人在下次摸牌前不能胡這張。</li>
+        <li><b>熟張比生張安全。</b>場上已經出現三張的牌，最多只能被單吊。整場沒出現過的中張（4、5、6），後半場最危險。</li>
+        <li><b>看誰在做一色。</b>有人整場都不打某一門，那門很可能是他的清一色、混一色，別餵。一直碰的人小心碰碰胡。</li>
+        <li><b>別餵下家吃。</b>下家只能吃你的牌，看他吃過什麼，別打他要的那一路。</li>
+        <li><b>打不贏就收手。</b>自己還差兩步以上、別人看起來已經聽了，就改打安全牌。少輸就是贏。</li>
+        <li><b>莊家連越多越貴。</b>放槍給連莊的莊家要多付莊家台和連莊台，對他打牌要特別小心。</li>
+      </ol>
+    </article>
+
+    <article class="panel guide-card">
+      <h3>牌桌用語</h3>
+      <dl class="terms">
+        <dt>放槍</dt><dd>打出的牌讓別人胡。</dd>
+        <dt>向聽</dt><dd>離聽牌還差幾步。一向聽 = 再進一張有用的就聽。</dd>
+        <dt>進張</dt><dd>能讓你更接近聽牌的牌，總共還剩幾張。</dd>
+        <dt>搭子</dt><dd>差一張成組的兩張：兩面、嵌張（中洞）、邊張、對子。</dd>
+        <dt>連莊拉莊</dt><dd>莊家每連一次，連一拉一，加 2 台。</dd>
+        <dt>過水</dt><dd>能胡的牌沒胡，下次摸牌前不能胡同一張。</dd>
+        <dt>相公</dt><dd>手牌張數錯了，這局不能胡，還是要繼續打。</dd>
+        <dt>詐胡</dt><dd>喊胡卻沒胡，通常要賠三家。</dd>
+        <dt>熟張・生張</dt><dd>已經出現過的牌是熟張；還沒出現的是生張。</dd>
+        <dt>嚦咕嚦咕</dt><dd>七對加一刻的特殊胡法。</dd>
+      </dl>
+    </article>
+
+    <article class="panel guide-card">
+      <h3>牌桌禮儀</h3>
+      <ul>
+        <li>「吃」「碰」「胡」先喊再拿牌，喊大聲一點。</li>
+        <li>牌打出去就不能收回。</li>
+        <li>胡了把牌攤開，讓大家一起看、一起算台。</li>
+        <li>手機留著練習就好。牌桌上滑手機查牌效會被當成作弊，算台吵起來時再拿出來大家一起看。</li>
+      </ul>
+    </article>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <p>規則以常見台灣十六張為準，各家規則不同，以你家牌桌為主。</p>
+</footer>
+
+</div>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

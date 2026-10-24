@@ -1,0 +1,9 @@
+{
+  "name": "taiwan-mahjong",
+  "version": "1.0.0",
+  "private": true,
+  "description": "大殺四方：台灣十六張麻將特訓（牌效分析、台數計算、練習題）",
+  "scripts": {
+    "test": "node --test"
+  }
+}
