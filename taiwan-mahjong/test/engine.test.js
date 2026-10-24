@@ -206,20 +206,44 @@ test('drawChance is a hypergeometric "at least one" chance', () => {
 
 test('simulated tables: an opponent is tenpai and my hand has both safe and unsafe tiles', () => {
   const random = M.rng(3);
-  for (let i = 0; i < 5; i++) {
+  let melds = 0;
+  for (let i = 0; i < 6; i++) {
     const tb = M.simulateTable(random);
     assert.equal(tb.me.length, 17);
     const target = tb.players.find(p => p.seat === tb.target);
     assert.ok(target.waits.length > 0);
-    assert.deepEqual(target.waits, M.waits(target.hand, 0));
-    assert.equal(target.hand.length, 16);
-    const all = M.toCounts(tb.me.concat(tb.myRiver, ...tb.players.map(p => p.river.concat(p.hand))));
+    for (const p of tb.players) {
+      assert.deepEqual(p.waits, M.waits(p.hand, p.melds.length));
+      assert.equal(p.hand.length, 16 - 3 * p.melds.length);
+      melds += p.melds.length;
+    }
+    // Every tile exists at most 4 times: hands, melds, and discards that were not claimed
+    const all = M.tableVisible(tb);
+    for (const p of tb.players) for (const t of p.hand) all[t]++;
     assert.ok(all.every(x => x <= 4));
+    // Each meld claimed exactly one discard from somebody's river
+    const claimed = tb.players.reduce((n, p) => n + p.called.length, tb.myCalled.length);
+    assert.equal(claimed, tb.players.reduce((n, p) => n + p.melds.length, 0));
     const danger = new Set(tb.players.flatMap(p => p.waits));
     const kinds = new Set(tb.me);
     assert.ok([...kinds].some(t => danger.has(t)));
     assert.ok([...kinds].some(t => !danger.has(t)));
   }
+  assert.ok(melds > 0, 'bots should call 吃碰 sometimes');
+});
+
+test('bots pung honors that score 台 and only chow when it helps', () => {
+  const bot = (hand, seat) => ({ c: M.toCounts(tiles(hand)), melds: [], value: M.valueHonors(seat, 0) });
+  const never = () => 0.99; // calls that are left to chance do not happen
+  // 中 pair: always pung, even with a closed hand
+  assert.deepEqual(M.botPung(bot('55z12m45m78m23p56p8s9s1z9p', 1), tiles('5z')[0], never).use, tiles('55z'));
+  // 北 is not 台 for 南家 in 東圈, and calling is left to chance
+  assert.equal(M.botPung(bot('44z12m45m78m23p56p8s9s1z9p', 1), tiles('4z')[0], never), null);
+  // Every chow on 7萬 would break a finished meld, so it is refused even when chance allows it
+  assert.equal(M.botChow(bot('123456789m159p159s1z', 1), tiles('7m')[0], () => 0), null);
+  // 13萬 嵌張 + 二萬 from 上家: 123萬 takes the hand from 2 to 1 away from tenpai
+  const ch = M.botChow(bot('13m456789p234s55z9s13z', 1), tiles('2m')[0], () => 0);
+  assert.deepEqual([ch.type, ch.tile], ['chow', tiles('1m')[0]]);
 });
 
 test('guessWaits: impossible tiles get nothing, discarded tiles get less, probabilities are sane', () => {
@@ -240,5 +264,6 @@ test('tenpaiChance grows with turns and with called melds', () => {
   assert.equal(M.tenpaiChance(0, 0), 0);
   assert.ok(M.tenpaiChance(10, 0) > M.tenpaiChance(6, 0));
   assert.ok(M.tenpaiChance(8, 2) > M.tenpaiChance(8, 0));
+  assert.ok(M.tenpaiChance(8, 9) >= M.tenpaiChance(8, 3));
   assert.ok(M.tenpaiChance(40, 0) <= 1);
 });

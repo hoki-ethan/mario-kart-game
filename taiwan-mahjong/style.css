@@ -456,6 +456,9 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
 .river-row.target { background: var(--hot-soft); }
 .river-head { display: grid; gap: 2px; }
 .river-head b { font-family: var(--font-display); font-size: 18px; }
+.river-body { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; min-width: 0; }
+.river-melds { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 12px; border-left: 2px solid var(--line); }
+.tile.called { opacity: 0.35; }
 .badge.hot { background: var(--hot); }
 .reveal { display: grid; gap: 10px; }
 .reveal-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }

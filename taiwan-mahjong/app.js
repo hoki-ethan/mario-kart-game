@@ -443,7 +443,6 @@
 
   // ---------- 模擬牌局 ----------
   const targetOf = tb => tb.players.find(p => p.seat === tb.target);
-  const tableVisible = tb => M.toCounts(tb.me.concat(tb.myRiver, ...tb.players.map(p => p.river)));
 
   function newTable() {
     const d = S.df;
@@ -461,7 +460,8 @@
   function ensureRead() {
     const d = S.df;
     if (d.table && !d.read) {
-      d.read = M.guessWaits({ river: targetOf(d.table).river, visible: tableVisible(d.table) });
+      const tgt = targetOf(d.table);
+      d.read = M.guessWaits({ river: tgt.river, melds: tgt.melds, visible: M.tableVisible(d.table) });
     }
     return d.read;
   }
@@ -483,24 +483,29 @@
 
     const tb = d.table;
     const tgt = targetOf(tb);
-    const riverRow = (name, river, isTarget) => `
+    // Claimed discards stay in the river, faded, so the discard order is still readable
+    const riverRow = (name, river, called, melds, isTarget) => `
       <div class="river-row${isTarget ? ' target' : ''}">
         <div class="river-head"><b>${name}</b>${isTarget ? '<span class="badge hot">聽牌了</span>' : ''}<span class="hint">打了 ${river.length} 張</span></div>
-        <div class="tiles tight">${river.map(t => tileHTML(t, { size: 'sm' })).join('')}</div>
+        <div class="river-body">
+          <div class="tiles tight">${river.map((t, i) => tileHTML(t, called.includes(i) ? { size: 'sm', cls: 'called', label: M.tileName(t) + '（被吃碰走）' } : { size: 'sm' })).join('')}</div>
+          ${melds.length ? `<div class="river-melds">${melds.map(meldChipHTML).join('')}</div>` : ''}
+        </div>
       </div>`;
-    const rivers = tb.players.map(p => riverRow(p.name, p.river, p.seat === tb.target)).join('') + riverRow('我', tb.myRiver, false);
-    const info = `<div class="table-info"><span>第 ${tgt.river.length} 巡</span><span>牌牆剩 ${tb.wallLeft} 張</span><span>電腦都沒吃碰，照牌效打</span></div>`;
+    const rivers = tb.players.map(p => riverRow(p.name, p.river, p.called, p.melds, p.seat === tb.target)).join('') +
+      riverRow('我', tb.myRiver, tb.myCalled, [], false);
+    const info = `<div class="table-info"><span>第 ${tgt.river.length} 巡</span><span>牌牆剩 ${tb.wallLeft} 張</span><span>電腦照牌效打，會吃碰，留中發白跟自己的風</span></div>`;
     const myHand = M.sortTiles(tb.me);
 
     let body;
     if (d.task === 'safe' && !d.answer) {
       body = `<p class="prompt">輪到你，剛摸完牌。${tgt.name}聽牌了，打哪張？</p>
         <div class="tiles">${myHand.map(t => tileHTML(t, { act: 'df-safe', label: '打' + M.tileName(t) })).join('')}</div>
-        <p class="hint">先看他打過什麼，還有哪一門他都不丟。</p>`;
+        <p class="hint">先看他打過什麼、吃碰了什麼，還有哪一門他都不丟。淡掉的牌是被吃碰走的。</p>`;
     } else if (d.task === 'safe') {
       body = safeRevealHTML();
     } else if (!d.answer) {
-      const visible = tableVisible(tb);
+      const visible = M.tableVisible(tb);
       const cell = t => {
         const on = d.picks.includes(t);
         return tileHTML(t, { act: 'df-pick', pressed: on, cls: on ? 'picked' : '', disabled: visible[t] >= 4, label: (on ? '取消' : '選') + M.tileName(t) });
@@ -523,10 +528,14 @@
     return top + info + `<div class="rivers">${rivers}</div>` + body;
   }
 
+  function meldChipHTML(m) {
+    return `<span class="meld">${groupHTML(M.meldTiles(m))}<span class="meld-tag">${MELD_NAMES[m.type]}</span></span>`;
+  }
+
   function handsRevealHTML(tb) {
     return '<div class="reveal">' + tb.players
       .filter(p => p.seat === tb.target || p.waits.length)
-      .map(p => `<div class="reveal-row"><b>${p.name}</b>${groupHTML(p.hand)}<span class="hint">聽</span>${groupHTML(p.waits)}</div>`)
+      .map(p => `<div class="reveal-row"><b>${p.name}</b>${groupHTML(p.hand)}${p.melds.map(meldChipHTML).join('')}<span class="hint">聽</span>${groupHTML(p.waits)}</div>`)
       .join('') + '</div>';
   }
 
@@ -535,7 +544,7 @@
     const tb = d.table;
     const tgt = targetOf(tb);
     const read = ensureRead();
-    const visible = tableVisible(tb);
+    const visible = M.tableVisible(tb);
     const kinds = [...new Set(tb.me)];
     const actual = [...new Set(tb.players.flatMap(p => p.waits))];
     const risky = kinds.filter(t => actual.includes(t)).length;
@@ -556,7 +565,7 @@
     const tb = d.table;
     const tgt = targetOf(tb);
     const read = ensureRead();
-    const visible = tableVisible(tb);
+    const visible = M.tableVisible(tb);
     const hits = d.picks.filter(t => tgt.waits.includes(t));
     const order = [...Array(M.KINDS).keys()].sort((a, b) => read.prob[b] - read.prob[a]).slice(0, 5);
     const modelHits = order.filter(t => tgt.waits.includes(t)).length;
@@ -567,7 +576,7 @@
       ${handsRevealHTML(tb)}
       <h3>他聽每張牌的機率（模型估計，紅框是答案）</h3>
       ${heatGridHTML(read.prob, visible, tgt.waits)}
-      <p class="hint">猜中聽牌本來就難，模型自己也只有約 4 成會在前 5 名猜到。真正有用的是反過來看：機率低的牌比較能打。</p>
+      <p class="hint">猜中聽牌本來就難，模型自己前 5 名也只有不到 4 成猜得到。真正有用的是反過來看：機率低的牌比較能打。</p>
       <div class="drill-actions"><button type="button" class="btn" data-act="df-new">下一局</button></div>`;
   }
 
@@ -696,7 +705,7 @@
       <div class="verdict">
         <span class="status">打了 ${m.river.length} 張・吃碰 ${m.melds.length} 組</span>
         <p class="big">最可能聽 ${namesList(order.slice(0, 2), 2)}</p>
-        <p class="sub">如果他聽了：${likely}。他現在已經聽牌的機率約 ${pct(pT)}（電腦模擬估的，真人吃碰越多聽得越快）。</p>
+        <p class="sub">如果他聽了：${likely}。他現在已經聽牌的機率約 ${pct(pT)}（照 2,400 局電腦牌局的巡目跟吃碰組數估的）。</p>
       </div>
       ${kinds.length ? `<h3>我的牌：如果他聽了，打出去會放槍的機率</h3>
         ${dangerListHTML(kinds, m.read.prob, 1, { inRiver, visible })}
@@ -1202,6 +1211,8 @@
     for (const k of ['an', 'sc', 'dr', 'df', 'dm']) {
       if (saved[k] && typeof saved[k] === 'object') Object.assign(S[k], saved[k]);
     }
+    // Tables saved by an older version have no 吃碰 data: deal a new one
+    if (S.df.table && !S.df.table.myCalled) Object.assign(S.df, { table: null, read: null, answer: null, picks: [] });
     bindCodeForm();
     bindStakes();
     bindRules();

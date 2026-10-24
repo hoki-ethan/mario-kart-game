@@ -720,20 +720,32 @@
   // DEFENSE (讀牌)
   // ============================================================
   const SEATS = ['我', '下家', '對家', '上家'];
-  const PUNG_BIAS = 2.5;      // people keep pungs (honor pairs especially) more than pure chance suggests
-  const SUIT_DROP = 0.2;      // each discard of a suit makes that suit a bit less likely in hand
+  const PUNG_BIAS = 2.5;       // people keep pungs more than pure chance suggests
+  const SUIT_DROP = 0.2;       // each discard of a suit makes that suit a bit less likely in hand
   const MELD_SUIT_BOOST = 1.4; // calling from a suit hints at a one-suit hand
-  const OWN_DISCARD = 0.35;   // waiting on a tile he already threw away is less likely (no 振聽 though)
-  const NEAR_DISCARD = 0.85;  // holding a neighbour of a tile he threw away is a little less likely
+  const OWN_DISCARD = 0.35;    // waiting on a tile he already threw away is less likely (no 振聽 though)
+  const NEAR_DISCARD = 0.85;   // holding a neighbour of a tile he threw away is a little less likely
 
-  // A simple efficient player: lowest shanten first, then most useful tiles. Never calls.
-  function botDiscard(c, random) {
+  // Honors that score 台 for a player: 中發白, his seat wind and the round wind
+  function valueHonors(seatWind, roundWind) {
+    const v = new Array(KINDS).fill(false);
+    v[RED] = v[GREEN] = v[WHITE] = true;
+    if (seatWind != null) v[27 + seatWind] = true;
+    if (roundWind != null) v[27 + roundWind] = true;
+    return v;
+  }
+
+  // Bot discard: lowest shanten, then most useful tiles. Never breaks a pair
+  // of 台 honors unless forced, and holds a single one for the first turns.
+  function botDiscard(c, random, ctx) {
+    ctx = ctx || {};
+    const called = ctx.called || 0;
     let best = [];
     let low = Infinity;
     for (let t = 0; t < KINDS; t++) {
       if (!c[t]) continue;
       c[t]--;
-      const s = shanten(c, 0);
+      const s = shanten(c, called);
       c[t]++;
       if (s < low) { low = s; best = [t]; } else if (s === low) best.push(t);
     }
@@ -742,16 +754,57 @@
     let score = -Infinity;
     for (const t of best) {
       c[t]--;
-      const u = usefulTiles(c, 0, null).total;
+      const u = usefulTiles(c, called, null).total;
       c[t]++;
-      const sc = u * 10 + discardEase(t) + random() * 3;
+      let keep = 0;
+      if (ctx.value && ctx.value[t]) keep = c[t] >= 2 ? 1000 : (ctx.turn || 0) < 6 ? 15 : 0;
+      const sc = u * 10 + discardEase(t) + random() * 3 - keep;
       if (sc > score) { score = sc; pick = t; }
     }
     return pick;
   }
 
-  // Four bots play from a fresh deal until an opponent is tenpai and it is my
-  // turn again (I just drew). Hands where somebody already won are thrown away.
+  // Calling: always pung honors that score 台. Otherwise call only when it gets
+  // closer to tenpai: sometimes while closed (門清 is worth 台), almost always
+  // once the hand is already open. A tenpai hand never calls.
+  const CALL_RATE = { open: 0.9, farClosed: 0.5, nearClosed: 0.3 };
+  const callRate = (bot, now) => (bot.melds.length ? CALL_RATE.open : now >= 2 ? CALL_RATE.farClosed : CALL_RATE.nearClosed);
+
+  function botPung(bot, d, random) {
+    const k = bot.melds.length;
+    if (bot.c[d] < 2) return null;
+    const now = shanten(bot.c, k);
+    if (now <= 0) return null;
+    bot.c[d] -= 2;
+    const after = shanten(bot.c, k + 1); // 3n+2 tiles: shanten after the best discard
+    bot.c[d] += 2;
+    if (after > now) return null;
+    if (bot.value[d] || (after < now && random() < callRate(bot, now))) return { type: 'pung', tile: d, use: [d, d] };
+    return null;
+  }
+
+  function botChow(bot, d, random) {
+    if (d >= 27) return null;
+    const k = bot.melds.length;
+    const now = shanten(bot.c, k);
+    if (now <= 0) return null;
+    let best = null;
+    for (let s = d - 2; s <= d; s++) {
+      const r = d % 9 - (d - s);
+      if (r < 0 || r > 6) continue;
+      const use = [s, s + 1, s + 2].filter(x => x !== d);
+      if (!bot.c[use[0]] || !bot.c[use[1]]) continue;
+      bot.c[use[0]]--; bot.c[use[1]]--;
+      const after = shanten(bot.c, k + 1);
+      bot.c[use[0]]++; bot.c[use[1]]++;
+      if (after < now && (!best || after < best.after)) best = { type: 'chow', tile: s, use, after };
+    }
+    return best && random() < callRate(bot, now) ? best : null;
+  }
+
+  // Four bots play from a fresh deal (I am the dealer, 東圈) until an opponent
+  // is tenpai and it is my turn again (I just drew). Bots call 吃碰; I don't.
+  // Hands where somebody already won are thrown away.
   function simulateTable(random, options) {
     random = random || Math.random;
     const minTurn = (options && options.minTurn) || 6;
@@ -764,42 +817,86 @@
 
   function playUntilTenpai(random, minTurn) {
     const wall = shuffledWall(random);
-    const hands = [0, 1, 2, 3].map(p => toCounts(wall.slice(p * 16, p * 16 + 16)));
-    const rivers = [[], [], [], []];
+    const bots = [0, 1, 2, 3].map(p => ({
+      c: toCounts(wall.slice(p * 16, p * 16 + 16)), melds: [], river: [], called: [], value: valueHonors(p, 0),
+    }));
     const end = wall.length - 16; // the last 8 stacks stay in the wall
     let next = 64;
     let target = -1;
-    for (let step = 0; ; step++) {
-      const p = step % 4;
-      if (next >= end) return null;
-      hands[p][wall[next++]]++;
-      if (p === 0 && target > 0) break;
-      if (shanten(hands[p], 0) === -1) return null;
-      const d = botDiscard(hands[p], random);
-      hands[p][d]--;
-      rivers[p].push(d);
+    let p = 0;
+    let draw = true;
+    for (;;) {
+      const b = bots[p];
+      if (draw) {
+        if (next >= end) return null;
+        b.c[wall[next++]]++;
+        if (p === 0 && target > 0) break;
+        if (shanten(b.c, b.melds.length) === -1) return null;
+      }
+      const d = botDiscard(b.c, random, { called: b.melds.length, value: b.value, turn: b.river.length });
+      b.c[d]--;
+      b.river.push(d);
+      if (p > 0 && target < 0 && b.river.length >= minTurn && waits(fromCounts(b.c), b.melds.length).length) target = p;
       for (let q = 0; q < 4; q++) {
         if (q === p) continue;
-        hands[q][d]++;
-        const won = shanten(hands[q], 0) === -1;
-        hands[q][d]--;
+        bots[q].c[d]++;
+        const won = shanten(bots[q].c, bots[q].melds.length) === -1;
+        bots[q].c[d]--;
         if (won) return null;
       }
-      if (p > 0 && target < 0 && rivers[p].length >= minTurn && waits(fromCounts(hands[p]), 0).length) target = p;
+      // 碰 from anyone, nearest in turn order first; otherwise 吃 by the next player
+      let caller = -1;
+      let meld = null;
+      for (let i = 1; i < 4 && caller < 0; i++) {
+        const q = (p + i) % 4;
+        if (q === 0) continue;
+        meld = botPung(bots[q], d, random);
+        if (meld) caller = q;
+      }
+      if (caller < 0 && (p + 1) % 4 !== 0) {
+        meld = botChow(bots[(p + 1) % 4], d, random);
+        if (meld) caller = (p + 1) % 4;
+      }
+      if (caller >= 0) {
+        for (const t of meld.use) bots[caller].c[t]--;
+        bots[caller].melds.push({ type: meld.type, tile: meld.tile });
+        b.called.push(b.river.length - 1);
+        p = caller;
+        draw = false;
+      } else {
+        p = (p + 1) % 4;
+        draw = true;
+      }
     }
 
-    const players = [1, 2, 3].map(p => {
-      const hand = fromCounts(hands[p]);
-      return { seat: p, name: SEATS[p], river: rivers[p], hand, waits: waits(hand, 0) };
+    const players = [1, 2, 3].map(seat => {
+      const bot = bots[seat];
+      const hand = fromCounts(bot.c);
+      return {
+        seat, name: SEATS[seat], river: bot.river, called: bot.called, melds: bot.melds,
+        hand, waits: waits(hand, bot.melds.length),
+      };
     });
-    const me = fromCounts(hands[0]);
+    const me = fromCounts(bots[0].c);
     // Only keep problems where the choice matters: some of my tiles deal in, some don't
     const danger = new Set();
     for (const pl of players) for (const t of pl.waits) danger.add(t);
     const kinds = new Set(me);
     const risky = [...kinds].filter(t => danger.has(t)).length;
     if (!risky || risky > kinds.size - 3) return null;
-    return { me, myRiver: rivers[0], players, target, wallLeft: end - next };
+    return { me, myRiver: bots[0].river, myCalled: bots[0].called, players, target, roundWind: 0, wallLeft: end - next };
+  }
+
+  // Every tile I can see at a simulated table (a claimed discard counts once, in the meld)
+  function tableVisible(tb) {
+    const c = toCounts(tb.me);
+    const addRiver = (river, called) => river.forEach((t, i) => { if (!called.includes(i)) c[t]++; });
+    addRiver(tb.myRiver, tb.myCalled);
+    for (const pl of tb.players) {
+      addRiver(pl.river, pl.called);
+      for (const m of pl.melds) for (const t of meldTiles(m)) c[t]++;
+    }
+    return c;
   }
 
   // Random complete hand (need groups + pair) drawn from the unseen pool.
@@ -865,7 +962,7 @@
   }
 
   // 他聽什麼: assuming the opponent is tenpai, the chance that each tile wins for him.
-  //   river:   his discards        melds: his called melds [{type, tile}]
+  //   river:   his discards (claimed ones included)   melds: his called melds [{type, tile}]
   //   visible: counts of every tile I can see (my hand, all rivers, all melds)
   function guessWaits(o) {
     const random = o.random || Math.random;
@@ -903,14 +1000,17 @@
     return { prob, suitWeight: weight };
   }
 
-  // Chance an opponent is already tenpai after n discards, measured from 1,500
-  // bot games (closed hands, efficient discards, game still going). Real
-  // players call melds, so each meld makes it likelier (rough guess).
-  const TENPAI_BY_TURN = [0, 0, 0, 0, 0.01, 0.02, 0.04, 0.07, 0.1, 0.13, 0.17, 0.21, 0.25, 0.29, 0.34];
+  // Chance an opponent is already tenpai, by melds called (row: 0, 1, 2, 3+) and
+  // discards made (column), measured from 2,400 bot games while still going.
+  const TENPAI_TABLE = [
+    [0, 0, 0, 0.01, 0.01, 0.03, 0.06, 0.1, 0.14, 0.19, 0.24, 0.29, 0.33, 0.38, 0.44, 0.47, 0.56],
+    [0, 0, 0, 0.01, 0.03, 0.05, 0.09, 0.14, 0.19, 0.25, 0.31, 0.37, 0.45, 0.53, 0.58, 0.64, 0.76],
+    [0, 0, 0.03, 0.05, 0.07, 0.13, 0.2, 0.28, 0.34, 0.42, 0.48, 0.58, 0.64, 0.69, 0.71, 0.73, 0.73],
+    [0, 0, 0, 0, 0.33, 0.34, 0.43, 0.53, 0.58, 0.62, 0.68, 0.73, 0.76, 0.78, 0.81, 0.87, 0.87],
+  ];
   function tenpaiChance(turns, meldCount) {
-    const n = Math.max(0, Math.min(TENPAI_BY_TURN.length - 1, turns));
-    const closed = TENPAI_BY_TURN[n];
-    return 1 - (1 - closed) * Math.pow(0.7, meldCount || 0);
+    const row = TENPAI_TABLE[Math.min(TENPAI_TABLE.length - 1, Math.max(0, meldCount || 0))];
+    return row[Math.min(row.length - 1, Math.max(0, turns))];
   }
 
   return {
@@ -918,7 +1018,8 @@
     suitOf, rankOf, isHonor, tileName, flowerName, parse, format,
     toCounts, fromCounts, sortTiles, meldTiles, isValidChowStart,
     shanten, shantenRegular, shantenLigu, remainingCounts, usefulTiles, waits, analyze,
-    unseenTotal, drawChance, SEATS, botDiscard, simulateTable, guessWaits, shapeWaits, tenpaiChance,
+    unseenTotal, drawChance, SEATS, valueHonors, botDiscard, botPung, botChow, simulateTable, tableVisible,
+    guessWaits, shapeWaits, tenpaiChance,
     defaultRules, decompositions, validateWin, scoreHand, dealerTai, settle,
     rng, discardProblem, waitProblem,
   };
