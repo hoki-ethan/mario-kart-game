@@ -1,6 +1,6 @@
 // ============================================================
 // Taiwan 16-tile mahjong engine (台灣十六張麻將)
-// Pure logic, no DOM: tiles, shanten (向聽), waits (聽牌),
+// Pure logic, no DOM: tiles, shanten (幾近聽), waits (聽牌),
 // discard analysis (牌效), scoring (台數) and settlement (算錢).
 // Works in the browser (window.TWMJ) and in Node (require).
 // ============================================================
@@ -84,7 +84,7 @@
   function sortTiles(tiles) { return [...tiles].sort((a, b) => a - b); }
 
   // ============================================================
-  // SHANTEN (向聽數)
+  // SHANTEN (幾近聽)
   // -1 = complete, 0 = tenpai (聽牌), n = n tiles away from tenpai.
   // Regular form: 5 melds + 1 pair. Taiwan special form: 嚦咕嚦咕
   // (7 pairs + 1 triplet, fully concealed). For a hand holding a

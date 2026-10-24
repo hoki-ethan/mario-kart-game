@@ -9,11 +9,11 @@
   const $ = sel => document.querySelector(sel);
 
   const TABS = ['analyze', 'score', 'drill', 'guide'];
-  const SHANTEN_NAMES = ['聽牌', '一向聽', '二向聽', '三向聽', '四向聽', '五向聽', '六向聽', '七向聽', '八向聽'];
+  const SHANTEN_NAMES = ['聽牌', '一近聽', '二近聽', '三近聽', '四近聽', '五近聽', '六近聽', '七近聽', '八近聽'];
   const MELD_NAMES = { chow: '吃', pung: '碰', kong: '明槓', ankan: '暗槓' };
   const PRESETS = [[30, 10], [50, 20], [100, 20], [100, 50], [300, 100]];
 
-  const shantenName = s => (s < 0 ? '胡了' : SHANTEN_NAMES[s] || `${s} 向聽`);
+  const shantenName = s => (s < 0 ? '胡了' : SHANTEN_NAMES[s] || `${s} 近聽`);
   const zeros = () => new Array(M.KINDS).fill(0);
   const money = n => Number(n).toLocaleString('zh-TW');
   const parseTiles = s => M.parse(s).tiles;
