@@ -1206,13 +1206,7 @@
   // ============================================================
   const renderers = { analyze: renderAnalyze, defense: renderDefense, score: renderScore, drill: renderDrill, guide: renderGuide };
 
-  function start(saved) {
-    saved = saved || {};
-    for (const k of ['an', 'sc', 'dr', 'df', 'dm']) {
-      if (saved[k] && typeof saved[k] === 'object') Object.assign(S[k], saved[k]);
-    }
-    // Tables saved by an older version have no 吃碰 data: deal a new one
-    if (S.df.table && !S.df.table.myCalled) Object.assign(S.df, { table: null, read: null, answer: null, picks: [] });
+  function start() {
     bindCodeForm();
     bindStakes();
     bindRules();
@@ -1220,16 +1214,8 @@
     renderAnalyze();
     renderScore();
     const fromHash = location.hash.slice(1);
-    showTab(TABS.includes(fromHash) ? fromHash : saved.tab || 'analyze', true);
+    showTab(TABS.includes(fromHash) ? fromHash : 'analyze', true);
   }
 
-  // Keep in-progress state across live updates of the published page
-  const hot = window.claude && window.claude.hot;
-  try {
-    if (hot && typeof hot.snapshot === 'function') {
-      hot.snapshot(() => ({ tab: S.tab, an: S.an, sc: S.sc, dr: S.dr, df: Object.assign({}, S.df, { loading: false }), dm: S.dm }));
-    }
-  } catch (e) { /* not in a viewer */ }
-  if (hot && typeof hot.ready === 'function') hot.ready(start);
-  else start(hot && hot.data);
+  start();
 })();
