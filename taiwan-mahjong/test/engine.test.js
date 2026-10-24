@@ -295,3 +295,36 @@ test('reasons: wait shapes, the wall and clues from the river', () => {
   assert.deepEqual(d.suji.map(M.tileName), ['二萬', '八萬']);
   assert.deepEqual(M.riverSuits(river), [2, 1, 1, 1]);
 });
+
+test('push or fold: attack when a little risk buys tenpai, fold when the hand is far away', () => {
+  const zeros = () => new Array(34).fill(0);
+  // Throwing 東 (a bit dangerous) makes tenpai on 3筒/6筒; anything else breaks the hand
+  const hand = tiles('123m456m789m123p45p99s1z');
+  const prob = zeros();
+  prob[tiles('1z')[0]] = 0.06;
+  const pf = M.pushFold({
+    hand, visible: M.toCounts(hand), wallLeft: 30, threats: [{ prob, tenpai: 1 }],
+    base: 100, perTai: 20, dealer: false,
+  });
+  assert.equal(M.tileName(pf.best.tile), '東');
+  assert.equal(pf.best.plan, 'push');
+  assert.equal(pf.best.shanten, 0);
+  assert.ok(pf.rows.every((r, i) => i === 0 || pf.rows[i - 1].ev >= r.ev));
+
+  // A hopeless hand facing a tenpai player: give up the honors he wants, throw a safe number tile
+  const far = tiles('159m159p159s1234567z2m');
+  const honors = zeros();
+  for (let t = 27; t < 34; t++) honors[t] = 0.3;
+  const pf2 = M.pushFold({
+    hand: far, visible: M.toCounts(far), wallLeft: 20, threats: [{ prob: honors, tenpai: 1 }],
+    base: 100, perTai: 20, dealer: false,
+  });
+  assert.equal(pf2.best.plan, 'fold');
+  assert.equal(pf2.best.dealIn, 0);
+  assert.ok(pf2.best.tile < 27);
+
+  // More tiles to wait on and more wall left never lowers the win chance
+  assert.ok(M.winChance(0, 8, 30) >= M.winChance(0, 2, 30));
+  assert.ok(M.winChance(1, 15, 30) >= M.winChance(1, 15, 6));
+  assert.ok(M.winChance(0, 4, 20) > M.winChance(2, 40, 20));
+});

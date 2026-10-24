@@ -60,14 +60,15 @@
       base: stakes.base, perTai: stakes.perTai, example: true,
     },
     dr: { mode: 'discard', flush: false, problem: null, answer: null, picks: [] },
-    df: { mode: 'sim', task: 'safe', table: null, read: null, answer: null, picks: [], loading: false, hint: null },
+    df: { mode: 'sim', task: 'safe', table: null, read: null, reads: {}, answer: null, picks: [], loading: false, hint: null },
     dm: {
       river: tileList('1z 7z 6z 8s 1m 1p 8s 4z 1s 9p 8m 4s'), melds: [], mine: parseTiles('1234m123678899p5688s'),
       seen: M.toCounts(parseTiles('1122235789m123p1112369s1122333444556677z')), target: 'river', example: true, read: null, hint: 11,
+      dealer: false,
     },
     stats: {
       discard: savedStats.discard || newStats(), wait: savedStats.wait || newStats(),
-      defense: savedStats.defense || newStats(), guess: savedStats.guess || newStats(),
+      pushfold: Object.assign({ dealt: 0 }, savedStats.pushfold || newStats()), guess: savedStats.guess || newStats(),
     },
   };
 
@@ -530,36 +531,56 @@
 
   function newTable() {
     const d = S.df;
-    Object.assign(d, { loading: true, table: null, read: null, answer: null, picks: [], hint: null });
+    Object.assign(d, { loading: true, table: null, read: null, reads: {}, answer: null, picks: [], hint: null });
     renderDefense();
-    // Let the loading state paint before the bots play
+    // Let the loading state paint before the bots play, then read every opponent in the background
     setTimeout(() => {
-      d.table = M.simulateTable(Math.random);
+      const tb = M.simulateTable(Math.random);
+      d.table = tb;
       d.loading = false;
       if (S.tab === 'defense') renderDefense();
-      setTimeout(ensureRead, 30);
+      const warm = seats => {
+        if (!seats.length || d.table !== tb) return;
+        readFor(seats[0]);
+        setTimeout(() => warm(seats.slice(1)), 30);
+      };
+      setTimeout(() => warm([tb.target, ...tb.players.map(p => p.seat).filter(x => x !== tb.target)]), 30);
     }, 30);
+  }
+
+  function readFor(seat) {
+    const d = S.df;
+    if (!d.reads[seat]) {
+      const p = d.table.players.find(x => x.seat === seat);
+      d.reads[seat] = M.guessWaits({ river: p.river, melds: p.melds, visible: M.tableVisible(d.table) });
+    }
+    return d.reads[seat];
   }
 
   function ensureRead() {
     const d = S.df;
-    if (d.table && !d.read) {
-      const tgt = targetOf(d.table);
-      d.read = M.guessWaits({ river: tgt.river, melds: tgt.melds, visible: M.tableVisible(d.table) });
-    }
+    if (d.table && !d.read) d.read = readFor(d.table.target);
     return d.read;
+  }
+
+  // The tenpai target for sure; the other two only as likely as their turn count and melds say
+  function tableThreats(tb) {
+    return tb.players.map(p => ({
+      prob: readFor(p.seat).prob,
+      tenpai: p.seat === tb.target ? 1 : M.tenpaiChance(p.river.length, p.melds.length),
+    }));
   }
 
   function simHTML() {
     const d = S.df;
-    const key = d.task === 'safe' ? 'defense' : 'guess';
+    const key = d.task === 'safe' ? 'pushfold' : 'guess';
     const st = S.stats[key];
     let stats;
     if (!st.n) stats = d.task === 'safe' ? '還沒開始。紀錄存在這台裝置上。' : '還沒開始。最多選 5 張，選到他真的聽的牌就算猜中。';
-    else if (d.task === 'safe') stats = `打了 <b>${st.n}</b> 局・沒放槍 <b>${pct(st.good / st.n)}</b>・連續安全 <b>${st.streak}</b>（最高 ${st.best}）`;
+    else if (d.task === 'safe') stats = `打了 <b>${st.n}</b> 局・判斷正確 <b>${pct(st.good / st.n)}</b>・連續 <b>${st.streak}</b>（最高 ${st.best}）・放槍 ${st.dealt || 0} 次`;
     else stats = `猜了 <b>${st.n}</b> 局・有猜中 <b>${pct(st.good / st.n)}</b>`;
     const top = `<div class="drill-top">
-        <div class="seg" role="group" aria-label="練什麼">${segHTML('df-task', [['safe', '挑安全牌'], ['guess', '猜他聽什麼']], d.task)}</div>
+        <div class="seg" role="group" aria-label="練什麼">${segHTML('df-task', [['safe', '攻守判斷'], ['guess', '猜他聽什麼']], d.task)}</div>
         <button type="button" class="btn ghost small" data-act="df-new">換一局</button>
       </div>
       <p class="stats">${stats}</p>`;
@@ -584,9 +605,9 @@
 
     let body;
     if (d.task === 'safe' && !d.answer) {
-      body = `<p class="prompt">輪到你，剛摸完牌。${tgt.name}聽牌了，打哪張？</p>
+      body = `<p class="prompt">輪到你，剛摸完牌。${tgt.name}聽牌了，攻還是守？打哪張？</p>
         <div class="tiles">${myHand.map(t => tileHTML(t, { act: 'df-safe', label: '打' + M.tileName(t) })).join('')}</div>
-        <p class="hint">先看他打過什麼、吃碰了什麼，還有哪一門他都不丟。淡掉的牌是被吃碰走的。</p>`;
+        <p class="hint">最好的打法不一定是最安全的：自己的牌夠好就該衝。淡掉的牌是被吃碰走的。</p>`;
     } else if (d.task === 'safe') {
       body = safeRevealHTML();
     } else if (!d.answer) {
@@ -624,24 +645,70 @@
       .join('') + '</div>';
   }
 
+  const signed = v => `${v >= 0 ? '+' : '−'}${money(Math.round(Math.abs(v)))}`;
+
+  function afterText(r) {
+    if (r.shanten === 0) return r.useful ? `聽牌 ${r.waits.length} 種 ${r.useful} 張` : '聽牌，但等的牌都看不到了';
+    return `${shantenName(r.shanten)}，進張 ${r.useful} 張`;
+  }
+
+  // Why the best play attacks or folds
+  function planReasonHTML(pf) {
+    const best = pf.best;
+    const loss = money(Math.round(pf.loss));
+    if (best.plan === 'push' && best.dealIn < 0.01) {
+      return `這手可以<b>邊守邊攻</b>：打${M.tileName(best.tile)}幾乎不會放槍，打完還是${afterText(best)}，有人聽牌時胡牌率約 ${pct(best.win)}，不用急著棄胡。`;
+    }
+    if (best.plan === 'push') {
+      return `這手該<b>攻</b>：打${M.tileName(best.tile)}之後${afterText(best)}，有人聽牌時最後胡牌的機率約 ${pct(best.win)}，胡了平均收 ${money(Math.round(best.gain))} 元；放槍一次大約賠 ${loss} 元。打這張放槍的機率 ${pct(best.dealIn)}，值得冒。`;
+    }
+    // The best you could do by attacking anyway
+    const top = pf.rows.reduce((a, r) => {
+      const v = -r.dealIn * pf.loss + (1 - r.dealIn) * r.attack;
+      return !a || v > a.v ? { r, v } : a;
+    }, null);
+    return `這手該<b>守</b>：最好的攻法是打${M.tileName(top.r.tile)}（打完${afterText(top.r)}），但胡牌率只有 ${pct(top.r.win)}，繼續衝之後還有 ${pct(top.r.pushLater)} 會放槍，期望值 ${signed(top.v)} 元。改打${M.tileName(best.tile)}守住，期望值 ${signed(best.ev)} 元（守了之後還是有約 ${pct(pf.foldLater)} 會放槍，安全牌可能用完）。`;
+  }
+
+  // Every discard ranked by expected money, with the danger reasons folded in
+  function pushFoldListHTML(pf, ctx) {
+    return '<ul class="dlist">' + pf.rows.map((r, i) => {
+      const t = r.tile;
+      const hit = ctx.actual && ctx.actual.includes(t);
+      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible }).map(clueChipHTML).join('');
+      const isBest = r.ev >= pf.best.ev - ctx.tolerance;
+      return `<li class="dl-row pf-row${isBest ? ' best' : ''}${hit ? ' hit' : ''}${ctx.chosen === t ? ' chosen' : ''}">
+        ${tileHTML(t, { size: 'sm' })}
+        <div class="dl-main">
+          <div class="pf-line"><span class="plan ${r.plan}">${r.plan === 'push' ? '攻' : '守'}</span><span>放槍 ${pct(r.dealIn)}</span><span>打完${afterText(r)}</span>${r.plan === 'push' ? `<span>胡牌率 ${pct(r.win)}</span>` : ''}</div>
+          <div class="dl-tags">${chips}${isBest ? '<b class="badge">最佳</b>' : ''}${hit ? '<b class="badge hot">會放槍</b>' : ''}${ctx.chosen === t ? '<b class="badge warn">你打的</b>' : ''}</div>
+        </div>
+        <span class="dl-pct ev ${r.ev >= 0 ? 'plus' : 'minus'}">${signed(r.ev)}<small>元</small></span>
+        ${whyHTML(t, ctx, r.dealIn)}
+      </li>`;
+    }).join('') + '</ul>';
+  }
+
   function safeRevealHTML() {
     const d = S.df;
     const tb = d.table;
-    const tgt = targetOf(tb);
-    const read = ensureRead();
+    const a = d.answer;
+    const pf = a.pf;
     const visible = M.tableVisible(tb);
-    const kinds = [...new Set(tb.me)];
     const actual = [...new Set(tb.players.flatMap(p => p.waits))];
-    const risky = kinds.filter(t => actual.includes(t)).length;
-    const safest = kinds.reduce((x, y) => (read.prob[x] <= read.prob[y] ? x : y));
-    const name = M.tileName(d.answer.tile);
-    const dealt = d.answer.dealtTo;
-    const sub = (dealt.length ? `打${name}放槍給${dealt.join('、')}。` : `打${name}沒事。`) +
-      `你手上 ${kinds.length} 種牌裡有 ${risky} 種會放槍。模型認為最安全的是${M.tileName(safest)}（${pct(read.prob[safest])}）。`;
-    return `<div class="feedback ${dealt.length ? 'bad' : 'good'}"><p class="big">${dealt.length ? '放槍了！' : '安全！'}</p><p>${sub}</p></div>
+    const chosen = pf.rows.find(r => r.tile === a.tile);
+    const name = M.tileName(a.tile);
+    const big = { good: chosen === pf.best ? '最佳解！' : '判斷正確！', ok: '差一點', bad: '可惜' }[a.grade];
+    const truth = a.dealtTo.length ? `實際上打${name}放槍給${a.dealtTo.join('、')}了。` : `實際上打${name}沒放槍。`;
+    return `<div class="feedback ${a.grade}"><p class="big">${big}</p>
+        <p>你打${name}：期望值 ${signed(chosen.ev)} 元。最佳是打${namesList(pf.rows.filter(r => r.ev >= pf.best.ev - a.tolerance).map(r => r.tile), 3)}：${signed(pf.best.ev)} 元。</p>
+        <p>${planReasonHTML(pf)}</p>
+        <p class="hint">${truth}結果好壞有運氣，判斷看的是期望值。</p>
+      </div>
       ${handsRevealHTML(tb)}
-      <h3>你的牌對${tgt.name}有多危險（假設他聽了）</h3>
-      ${dangerListHTML(kinds, read.prob, 1, { river: tgt.river, visible, actual, chosen: d.answer.tile })}
+      <h3>每張牌的攻守（照台數頁的底 ${money(S.sc.base)}／每台 ${money(S.sc.perTai)}，你是莊家）</h3>
+      ${pushFoldListHTML(pf, { river: targetOf(tb).river, visible, actual, chosen: a.tile, tolerance: a.tolerance })}
+      <p class="hint">期望值 ＝ 胡牌率 × 胡了收的錢 − 放槍率 × 放槍賠的錢 − 之後再放槍的風險。別人自摸要付的錢不管攻守都一樣，沒算進去。胡牌率、之後放槍的機率、平均台數都是電腦牌局量的。</p>
       <div class="drill-actions"><button type="button" class="btn" data-act="df-new">下一局</button></div>`;
   }
 
@@ -672,10 +739,25 @@
     const d = S.df;
     if (d.answer || !d.table) return;
     const tile = Number(v);
+    const tb = d.table;
     ensureRead();
-    const dealtTo = d.table.players.filter(p => p.waits.includes(tile)).map(p => p.name);
-    d.answer = { tile, dealtTo };
-    record('defense', !dealtTo.length);
+    const pf = M.pushFold({
+      hand: tb.me, visible: M.tableVisible(tb), wallLeft: tb.wallLeft, threats: tableThreats(tb),
+      base: S.sc.base, perTai: S.sc.perTai, dealer: true, seatWind: 0, roundWind: tb.roundWind,
+    });
+    const chosen = pf.rows.find(r => r.tile === tile);
+    // Differences of a few 元 are noise; treat them as equally good
+    const tolerance = Math.max(3, 0.03 * pf.loss);
+    let grade = 'bad';
+    if (chosen.ev >= pf.best.ev - tolerance) grade = 'good';
+    else if (chosen.ev >= pf.best.ev - Math.max(10, 0.12 * pf.loss)) grade = 'ok';
+    const dealtTo = tb.players.filter(p => p.waits.includes(tile)).map(p => p.name);
+    d.answer = { tile, dealtTo, pf, grade, tolerance };
+    record('pushfold', grade === 'good');
+    if (dealtTo.length) {
+      S.stats.pushfold.dealt = (S.stats.pushfold.dealt || 0) + 1;
+      store.set('stats', S.stats);
+    }
     renderDefense();
   };
   actions['df-pick'] = v => {
@@ -794,12 +876,32 @@
       </div>
       <h3>讀他的河</h3>
       ${riverReadHTML(m.river, [], m.hint, 'dm-hint')}
-      ${kinds.length ? `<h3>我的牌：如果他聽了，打出去會放槍的機率</h3>
-        ${dangerListHTML(kinds, m.read.prob, 1, { river: m.river, visible })}
-        <p class="hint">只算這一家。他還沒聽的話，實際風險再乘上 ${pct(pT)}。</p>` : ''}
+      ${manualDecisionHTML(kinds, visible, pT)}
       <h3>他聽每張牌的機率</h3>
       ${heatGridHTML(m.read.prob, visible, null)}
     </div>`;
+  }
+
+  // 17 tiles (just drew): rank discards by expected money; otherwise just the danger
+  function manualDecisionHTML(kinds, visible, pT) {
+    const m = S.dm;
+    if (!kinds.length) return '';
+    if (m.mine.length !== 17) {
+      return `<h3>我的牌：如果他聽了，打出去會放槍的機率</h3>
+        ${dangerListHTML(kinds, m.read.prob, 1, { river: m.river, visible })}
+        <p class="hint">只算這一家。他還沒聽的話，實際風險再乘上 ${pct(pT)}。放滿 17 張（剛摸完牌）就會幫你算攻還是守。</p>`;
+    }
+    const wallLeft = Math.max(0, 56 - 4 * m.river.length);
+    const pf = M.pushFold({
+      hand: m.mine, visible, wallLeft, threats: [{ prob: m.read.prob, tenpai: pT }],
+      base: S.sc.base, perTai: S.sc.perTai, dealer: m.dealer, seatWind: m.dealer ? 0 : 1,
+    });
+    const tolerance = Math.max(3, 0.03 * pf.loss);
+    return `<h3>攻還是守：打哪張</h3>
+      <div class="chips"><button type="button" class="chip" data-act="dm-dealer" aria-pressed="${m.dealer}">我是莊家</button></div>
+      <p>${planReasonHTML(pf)}</p>
+      ${pushFoldListHTML(pf, { river: m.river, visible, tolerance })}
+      <p class="hint">只算這一家，他聽牌的機率用 ${pct(pT)}。牌牆大約剩 ${wallLeft} 張（照他打了幾張估）。底台照台數頁：${money(S.sc.base)}／${money(S.sc.perTai)}。</p>`;
   }
 
   function touchManual() {
@@ -808,6 +910,7 @@
   }
 
   actions['dm-target'] = v => { S.dm.target = v; renderManual(); };
+  actions['dm-dealer'] = () => { S.dm.dealer = !S.dm.dealer; renderManualResult(); };
   actions['dm-hint'] = v => { S.dm.hint = S.dm.hint === Number(v) ? null : Number(v); renderManualResult(); };
   actions['dm-add'] = v => {
     const m = S.dm;

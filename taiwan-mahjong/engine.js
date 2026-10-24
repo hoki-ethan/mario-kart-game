@@ -1105,6 +1105,112 @@
 
   function unique(list) { return [...new Set(list)]; }
 
+  // ============================================================
+  // PUSH OR FOLD (攻守)
+  // ============================================================
+  // Measured from 4,800 bot games, at my turns while an opponent is tenpai
+  // (me closed, everybody else calling). Columns: wall left 0-12, 13-24,
+  // 25-36, 37+ (interpolated between bucket centres). Lightly smoothed.
+  const WALL_CENTRES = [6, 18, 30, 42];
+  const WIN_RATE = [
+    // tenpai, by tiles still out that win: 0-2, 3-4, 5-6, 7+
+    { cuts: [2, 4, 6], rows: [[0.14, 0.22, 0.22, 0.22], [0.16, 0.26, 0.32, 0.32], [0.29, 0.46, 0.46, 0.46], [0.29, 0.48, 0.48, 0.48]] },
+    // 一近聽, by useful tiles: 0-10, 11-20, 21-30, 31+
+    { cuts: [10, 20, 30], rows: [[0.01, 0.04, 0.07, 0.07], [0.03, 0.07, 0.11, 0.14], [0.04, 0.1, 0.2, 0.22], [0.05, 0.18, 0.3, 0.33]] },
+    { cuts: [], rows: [[0.005, 0.015, 0.03, 0.035]] }, // 二近聽
+    { cuts: [], rows: [[0, 0, 0.005, 0.015]] },        // 三近聽 or worse
+  ];
+  // Chance of dealing in on a later turn: keep attacking (by shanten) or fold from now on
+  const PUSH_DEAL_IN = [[0.05, 0.11, 0.11, 0.13], [0.08, 0.16, 0.19, 0.2], [0.09, 0.15, 0.22, 0.23], [0.05, 0.14, 0.18, 0.2]];
+  const FOLD_DEAL_IN = [0.03, 0.04, 0.05, 0.05];
+  const WIN_STATS = {
+    tsumoShare: 0.25, // a quarter of my wins are self-draws
+    extraTai: 1.3,    // my average 台 on top of 門清 / 門清自摸
+    oppTai: 1.3,      // what a tenpai opponent's hand averages when I deal in
+  };
+
+  function byWall(row, wallLeft) {
+    if (row.length === 1 || wallLeft <= WALL_CENTRES[0]) return row[0];
+    for (let i = 1; i < WALL_CENTRES.length; i++) {
+      if (wallLeft <= WALL_CENTRES[i]) {
+        const f = (wallLeft - WALL_CENTRES[i - 1]) / (WALL_CENTRES[i] - WALL_CENTRES[i - 1]);
+        return row[i - 1] + f * (row[i] - row[i - 1]);
+      }
+    }
+    return row[row.length - 1];
+  }
+
+  // Chance I end up winning this hand if I keep attacking
+  function winChance(sh, useful, wallLeft) {
+    const table = WIN_RATE[Math.min(3, Math.max(0, sh))];
+    let i = table.cuts.findIndex(c => useful <= c);
+    if (i < 0) i = table.rows.length - 1;
+    return byWall(table.rows[i], wallLeft);
+  }
+
+  // 攻守: expected money of each discard while someone may be tenpai.
+  //   hand: my 17 tiles (closed)      visible: every tile I can see, my hand included
+  //   threats: [{ prob[34] (his wait chances), tenpai (chance he is tenpai) }]
+  //   wallLeft, base, perTai, dealer (am I the dealer), seatWind, roundWind, oppTai
+  // For each tile: deal in now, or not and then the better of attacking on
+  // (win chance × what a win pays − later deal-in × what it costs) or folding.
+  // Payments that do not depend on my choice (others' self-draws) are left out.
+  function pushFold(o) {
+    const base = o.base;
+    const perTai = o.perTai;
+    const dealerTai = o.dealer ? 1 : 0;
+    const oppTai = o.oppTai != null ? o.oppTai : WIN_STATS.oppTai;
+    const loss = base + (oppTai + dealerTai) * perTai;
+    const pay = tai => base + (tai + dealerTai) * perTai;
+    const winValue = (ronTai, tsumoTai) =>
+      (1 - WIN_STATS.tsumoShare) * pay(ronTai) + WIN_STATS.tsumoShare * 3 * pay(tsumoTai);
+    const c = toCounts(o.hand);
+    const left = new Array(KINDS);
+    for (let t = 0; t < KINDS; t++) left[t] = Math.max(0, 4 - (o.visible[t] || 0));
+    const seat = o.seatWind != null ? o.seatWind : 1;
+    const round = o.roundWind || 0;
+    const foldLater = byWall(FOLD_DEAL_IN, o.wallLeft);
+
+    const rows = [];
+    for (let t = 0; t < KINDS; t++) {
+      if (!c[t]) continue;
+      let safe = 1;
+      for (const th of o.threats) safe *= 1 - th.tenpai * th.prob[t];
+      const dealIn = 1 - safe;
+      c[t]--;
+      const u = usefulTiles(c, 0, left);
+      let gain;
+      if (u.shanten === 0 && u.total > 0) {
+        // Tenpai: score every wait for real
+        const hand = fromCounts(c);
+        let ron = 0;
+        let tsumo = 0;
+        for (const w of u.tiles) {
+          if (!w.left) continue;
+          const sc = (selfDraw) => scoreHand({ hand, winTile: w.tile, selfDraw, seatWind: seat, roundWind: round }).total || 0;
+          ron += sc(false) * w.left;
+          tsumo += sc(true) * w.left;
+        }
+        gain = winValue(ron / u.total, tsumo / u.total);
+      } else {
+        gain = winValue(1 + WIN_STATS.extraTai, 3 + WIN_STATS.extraTai);
+      }
+      c[t]++;
+      const win = winChance(u.shanten, u.total, o.wallLeft);
+      const pushLater = byWall(PUSH_DEAL_IN[Math.min(3, u.shanten)], o.wallLeft);
+      const attack = win * gain - pushLater * loss;
+      const fold = -foldLater * loss;
+      const plan = attack >= fold ? 'push' : 'fold';
+      rows.push({
+        tile: t, dealIn, shanten: u.shanten, useful: u.total, waits: u.tiles,
+        win, gain, pushLater, attack, fold, plan,
+        ev: -dealIn * loss + (1 - dealIn) * Math.max(attack, fold),
+      });
+    }
+    rows.sort((a, b) => b.ev - a.ev || a.dealIn - b.dealIn);
+    return { rows, best: rows[0], loss, foldLater };
+  }
+
   // Chance an opponent is already tenpai, by melds called (row: 0, 1, 2, 3+) and
   // discards made (column), measured from 2,400 bot games while still going.
   const TENPAI_TABLE = [
@@ -1125,6 +1231,7 @@
     shanten, shantenRegular, shantenLigu, remainingCounts, usefulTiles, waits, analyze,
     unseenTotal, drawChance, SEATS, valueHonors, botDiscard, botPung, botChow, simulateTable, tableVisible,
     guessWaits, shapeWaits, tenpaiChance, CLUE_FACTORS, waitShapes, tileClues, discardClues, riverSuits,
+    WIN_STATS, winChance, pushFold,
     defaultRules, decompositions, validateWin, scoreHand, dealerTai, settle,
     rng, discardProblem, waitProblem,
   };
