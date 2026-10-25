@@ -916,24 +916,33 @@
     roundWind: [[0.232, 0.438], [0.012, 0.032], [0, 0]],
     wind: [[0.123, 0.273], [0.022, 0.062], [0, 0]],
   };
-  // ...and the chance 下家 吃s it when nobody 碰s, by how many chow shapes around it are
-  // still possible (0-3, from what the discarder can see). Rows: 下家 closed / already called;
-  // inner rows: 下家 never threw this tile / threw it before.
-  const CHOW_RATE = [
-    [[0, 0.047, 0.082, 0.107], [0, 0.003, 0.006, 0.002]],
-    [[0, 0.066, 0.114, 0.161], [0, 0.004, 0.003, 0.005]],
-  ];
+  // ...and the chance 下家 吃s it when nobody 碰s (6,000 more bot games). A chow shape is open
+  // when both other tiles still have a copy out, and live when neither of them is a tile 下家
+  // threw himself: the tiles outside his discards (外側) have no live shape and almost never
+  // get chowed. By 下家 still closed / already called: live shapes 0-3, or he threw this tile.
+  const CHOW_RATE = {
+    closed: { live: [0.009, 0.054, 0.09, 0.127], threw: 0.004 },
+    open: { live: [0.018, 0.089, 0.145, 0.194], threw: 0.004 },
+  };
 
-  // Chow shapes around t whose two other tiles still have a copy out
-  function openChows(t, seen) {
-    if (t >= 27) return 0;
-    const left = x => 4 - (seen[x] || 0) > 0;
+  // Chow shapes around t: open (both tiles still out), live (and not through 下家's discards),
+  // and which of his discards kill the rest
+  function chowShapes(t, seen, nextRiver) {
+    const out = { open: 0, live: 0, through: [] };
+    if (t >= 27) return out;
     const r = t % 9;
-    let n = 0;
-    if (r >= 2 && left(t - 2) && left(t - 1)) n++;
-    if (r >= 1 && r <= 7 && left(t - 1) && left(t + 1)) n++;
-    if (r <= 6 && left(t + 1) && left(t + 2)) n++;
-    return n;
+    const shapes = [];
+    if (r >= 2) shapes.push([t - 2, t - 1]);
+    if (r >= 1 && r <= 7) shapes.push([t - 1, t + 1]);
+    if (r <= 6) shapes.push([t + 1, t + 2]);
+    for (const sh of shapes) {
+      if (!sh.every(x => 4 - (seen[x] || 0) > 0)) continue;
+      out.open++;
+      const thrown = sh.filter(x => (nextRiver || []).includes(x));
+      if (thrown.length) thrown.forEach(x => { if (!out.through.includes(x)) out.through.push(x); });
+      else out.live++;
+    }
+    return out;
   }
 
   // Chance my discard t feeds somebody.
@@ -942,9 +951,10 @@
   function feedRisk(t, o) {
     const kind = t < 27 ? 'number' : t >= 31 ? 'dragon' : t - 27 === (o.roundWind || 0) ? 'roundWind' : 'wind';
     const pung = PUNG_RATE[kind][Math.min(2, o.seen[t] || 0)][o.turn < 6 ? 0 : 1];
-    const open = openChows(t, o.seen);
-    const chow = t < 27 ? CHOW_RATE[o.next.melds.length ? 1 : 0][o.next.river.includes(t) ? 1 : 0][open] : 0;
-    return { pung, chow, total: pung + (1 - pung) * chow, open };
+    const sh = chowShapes(t, o.seen, o.next.river);
+    const row = CHOW_RATE[o.next.melds.length ? 'open' : 'closed'];
+    const chow = t >= 27 ? 0 : o.next.river.includes(t) ? row.threw : row.live[sh.live];
+    return { pung, chow, total: pung + (1 - pung) * chow, open: sh.open, live: sh.live, through: sh.through };
   }
 
   // Every discard at a 盯牌 table: speed first (lowest shanten, 進張 within 10% of the best),
@@ -1272,6 +1282,11 @@
   // Chance of dealing in on a later turn: keep attacking (by shanten) or fold from now on
   const PUSH_DEAL_IN = [[0.05, 0.11, 0.11, 0.13], [0.08, 0.16, 0.19, 0.2], [0.09, 0.15, 0.22, 0.23], [0.05, 0.14, 0.18, 0.2]];
   const FOLD_DEAL_IN = [0.03, 0.04, 0.05, 0.05];
+  // The same three for when nobody is tenpai yet. Not measured yet: copies of the tables above,
+  // so an unsure threat is treated like a sure one until the quiet-hand numbers are in.
+  const WIN_RATE_QUIET = WIN_RATE;
+  const PUSH_DEAL_IN_QUIET = PUSH_DEAL_IN;
+  const FOLD_DEAL_IN_QUIET = FOLD_DEAL_IN;
   const WIN_STATS = {
     tsumoShare: 0.25, // a quarter of my wins are self-draws
     extraTai: 1.3,    // my average 台 on top of 門清 / 門清自摸
@@ -1290,15 +1305,30 @@
   }
 
   // Chance I end up winning this hand if I keep attacking
-  function winChance(sh, useful, wallLeft) {
-    const table = WIN_RATE[Math.min(3, Math.max(0, sh))];
+  function winChance(sh, useful, wallLeft, quiet) {
+    const table = (quiet ? WIN_RATE_QUIET : WIN_RATE)[Math.min(3, Math.max(0, sh))];
     let i = table.cuts.findIndex(c => useful <= c);
     if (i < 0) i = table.rows.length - 1;
     return byWall(table.rows[i], wallLeft);
   }
 
+  // Chance at least one of the threats is tenpai right now
+  const threatLevel = threats => 1 - threats.reduce((a, th) => a * (1 - th.tenpai), 1);
+
+  // Winning, and dealing in later when attacking or folding, mixed by how sure it is that
+  // somebody is tenpai now (the rest of the time the hand is still quiet)
+  function laterOdds(sh, useful, wallLeft, sure) {
+    const mix = (a, b) => sure * a + (1 - sure) * b;
+    const s = Math.min(3, Math.max(0, sh));
+    return {
+      win: mix(winChance(sh, useful, wallLeft), winChance(sh, useful, wallLeft, true)),
+      pushLater: mix(byWall(PUSH_DEAL_IN[s], wallLeft), byWall(PUSH_DEAL_IN_QUIET[s], wallLeft)),
+      foldLater: mix(byWall(FOLD_DEAL_IN, wallLeft), byWall(FOLD_DEAL_IN_QUIET, wallLeft)),
+    };
+  }
+
   // 攻守: expected money of each discard while someone may be tenpai.
-  //   hand: my 17 tiles (closed)      visible: every tile I can see, my hand included
+  //   hand: my concealed tiles      melds: my called melds (default none)      visible: every tile I can see, my hand included
   //   threats: [{ prob[34] (his wait chances), tenpai (chance he is tenpai) }]
   //   wallLeft, base, perTai, dealer (am I the dealer), seatWind, roundWind, oppTai
   // For each tile: deal in now, or not and then the better of attacking on
@@ -1321,11 +1351,13 @@
   function pushFold(o) {
     const { loss, winValue, averageWin } = stakes(o);
     const c = toCounts(o.hand);
+    const melds = o.melds || [];
     const left = new Array(KINDS);
     for (let t = 0; t < KINDS; t++) left[t] = Math.max(0, 4 - (o.visible[t] || 0));
     const seat = o.seatWind != null ? o.seatWind : 1;
     const round = o.roundWind || 0;
-    const foldLater = byWall(FOLD_DEAL_IN, o.wallLeft);
+    const sure = threatLevel(o.threats);
+    const foldLater = laterOdds(0, 0, o.wallLeft, sure).foldLater;
 
     const rows = [];
     for (let t = 0; t < KINDS; t++) {
@@ -1334,7 +1366,7 @@
       for (const th of o.threats) safe *= 1 - th.tenpai * th.prob[t];
       const dealIn = 1 - safe;
       c[t]--;
-      const u = usefulTiles(c, 0, left);
+      const u = usefulTiles(c, melds.length, left);
       let gain;
       if (u.shanten === 0 && u.total > 0) {
         // Tenpai: score every wait for real
@@ -1343,7 +1375,7 @@
         let tsumo = 0;
         for (const w of u.tiles) {
           if (!w.left) continue;
-          const sc = (selfDraw) => scoreHand({ hand, winTile: w.tile, selfDraw, seatWind: seat, roundWind: round }).total || 0;
+          const sc = (selfDraw) => scoreHand({ hand, winTile: w.tile, melds, selfDraw, seatWind: seat, roundWind: round }).total || 0;
           ron += sc(false) * w.left;
           tsumo += sc(true) * w.left;
         }
@@ -1352,8 +1384,7 @@
         gain = averageWin;
       }
       c[t]++;
-      const win = winChance(u.shanten, u.total, o.wallLeft);
-      const pushLater = byWall(PUSH_DEAL_IN[Math.min(3, u.shanten)], o.wallLeft);
+      const { win, pushLater } = laterOdds(u.shanten, u.total, o.wallLeft, sure);
       const attack = win * gain - pushLater * loss;
       const fold = -foldLater * loss;
       const plan = attack >= fold ? 'push' : 'fold';
@@ -1364,17 +1395,17 @@
       });
     }
     rows.sort((a, b) => b.ev - a.ev || a.dealIn - b.dealIn);
-    return { rows, best: rows[0], loss, foldLater };
+    return { rows, best: rows[0], loss, foldLater, sure };
   }
 
   // 棄胡門檻: the highest deal-in chance the tile you must cut can have before
   // folding (safe tiles from now on, giving up the win) is worth more.
   // Attack beats fold when  -d·L + (1-d)·A > -F·L,  i.e.  d < (A + F·L) / (L + A).
+  //   sure: how likely he is tenpai now (default 1)
   function foldThreshold(o) {
     const { loss, averageWin } = stakes(o);
-    const win = winChance(o.shanten, o.useful, o.wallLeft);
-    const attack = win * averageWin - byWall(PUSH_DEAL_IN[Math.min(3, o.shanten)], o.wallLeft) * loss;
-    const foldLater = byWall(FOLD_DEAL_IN, o.wallLeft);
+    const { win, pushLater, foldLater } = laterOdds(o.shanten, o.useful, o.wallLeft, o.sure != null ? o.sure : 1);
+    const attack = win * averageWin - pushLater * loss;
     const threshold = Math.max(0, Math.min(1, (attack + foldLater * loss) / (loss + attack)));
     return { threshold, win, gain: averageWin, loss, attack, fold: -foldLater * loss };
   }
@@ -1401,6 +1432,6 @@
     guessWaits, shapeWaits, tenpaiChance, CLUE_FACTORS, waitShapes, tileClues, discardClues, riverSuits,
     WIN_STATS, winChance, pushFold, foldThreshold, tenpaiSignal,
     defaultRules, decompositions, validateWin, scoreHand, dealerTai, settle,
-    rng, discardProblem, waitProblem, PUNG_RATE, CHOW_RATE, openChows, feedRisk, markOptions, markProblem,
+    rng, discardProblem, waitProblem, PUNG_RATE, CHOW_RATE, chowShapes, feedRisk, markOptions, markProblem,
   };
 });

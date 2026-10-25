@@ -401,12 +401,18 @@ test('跟打: the tile 上家 just threw is safe against the players who passed 
 
 test('盯牌: chow shapes, feed risk and the marking answer', () => {
   const none = M.toCounts([]);
-  assert.equal(M.openChows(tiles('5m')[0], none), 3);
-  assert.equal(M.openChows(tiles('1m')[0], none), 1);
-  assert.equal(M.openChows(tiles('5z')[0], none), 0);
+  assert.equal(M.chowShapes(tiles('5m')[0], none, []).open, 3);
+  assert.equal(M.chowShapes(tiles('1m')[0], none, []).open, 1);
+  assert.equal(M.chowShapes(tiles('5z')[0], none, []).open, 0);
   // All four 四萬 visible: only 67 can still take 五萬
-  assert.equal(M.openChows(tiles('5m')[0], M.toCounts(tiles('4444m'))), 1);
+  assert.equal(M.chowShapes(tiles('5m')[0], M.toCounts(tiles('4444m')), []).open, 1);
+  // 下家 threw 三萬: 一萬 and 二萬 are outside it (外側), every shape needs his 三萬
+  const threw3 = tiles('3m');
+  assert.deepEqual(M.chowShapes(tiles('2m')[0], none, threw3), { open: 2, live: 0, through: threw3 });
+  assert.equal(M.chowShapes(tiles('1m')[0], none, threw3).live, 0);
+  assert.equal(M.chowShapes(tiles('4m')[0], none, threw3).live, 1);
   const next = { river: [], melds: [] };
+  assert.ok(M.feedRisk(tiles('2m')[0], { seen: none, next: { river: threw3, melds: [] }, turn: 4 }).chow < 0.02);
   const fresh = M.feedRisk(tiles('5z')[0], { seen: none, next, turn: 8 });
   const dead = M.feedRisk(tiles('5z')[0], { seen: M.toCounts(tiles('55z')), next, turn: 8 });
   assert.equal(fresh.chow, 0);

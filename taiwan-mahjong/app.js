@@ -822,7 +822,7 @@
     const w = S.dw;
     const row = (label, body) => `<div class="cond"><span>${label}</span><span class="cond-body">${body}</span></div>`;
     const lines = WHEN_ROWS.map(([name, sh, useful]) => {
-      const r = M.foldThreshold({ shanten: sh, useful, wallLeft: w.wall, base: S.sc.base, perTai: S.sc.perTai, oppTai: w.oppTai, dealer: w.dealer });
+      const r = M.foldThreshold({ shanten: sh, useful, wallLeft: w.wall, base: S.sc.base, perTai: S.sc.perTai, oppTai: w.oppTai, dealer: w.dealer, sure: w.sure });
       // Attack minus fold when the tile you cut deals in with chance d (folding throws a safe tile)
       const edge = d => -d * r.loss + (1 - d) * r.attack - r.fold;
       const tol = Math.max(3, 0.03 * r.loss);
@@ -860,7 +860,7 @@
           <tbody>${cells}</tbody>
         </table>
       </div>
-      <p class="hint">欄位是「要打的那張，如果他聽了會放槍的機率」，防守頁每張牌都有。攻：照牌效打下去；守：從這張開始打安全牌、放棄胡牌；≈：差不到放槍金額的 3%。</p>
+      <p class="hint">欄位是「要打的那張，如果他聽了會放槍的機率」，防守頁每張牌都有。攻：照牌效打下去；守：從這張開始打安全牌、放棄胡牌；≈：差不到放槍金額的 3%。選「一半一半」「不太像」時，這張打出去的風險和之後的風險都照他還沒聽的機會打折。</p>
       <div class="when-summary">${summary.map(x => `<p>${x}</p>`).join('')}</div>`;
   }
 
@@ -995,7 +995,7 @@
       <div class="chips"><button type="button" class="chip" data-act="dm-dealer" aria-pressed="${m.dealer}">我是莊家</button></div>
       <p>${planReasonHTML(pf)}</p>
       ${pushFoldListHTML(pf, { river: m.river, visible, tolerance, trickster: m.trickster })}
-      <p class="hint">只算這一家，他聽牌的機率用 ${pct(pT)}。牌牆大約剩 ${wallLeft} 張（照他打了幾張估）。底台照台數頁：${money(S.sc.base)}／${money(S.sc.perTai)}。</p>`;
+      <p class="hint">只算這一家，他聽牌的機率用 ${pct(pT)}；他還沒聽的話，之後放槍的風險低很多，這也算進去了。牌牆大約剩 ${wallLeft} 張（照他打了幾張估）。底台照台數頁：${money(S.sc.base)}／${money(S.sc.perTai)}。</p>`;
   }
 
   function touchManual() {
@@ -1432,8 +1432,14 @@
       return out;
     }
     const next = tb.players.find(p => p.seat === 1);
+    const f = r.feed;
     if (next.river.includes(t)) out.push('下家打過');
-    out.push(r.feed.open ? `下家能吃的搭子 ${r.feed.open} 種` : '下家吃不到');
+    else if (!f.open) out.push('下家吃不到');
+    else if (!f.live) out.push(`外側：搭子都要用他打過的${namesList(f.through, 2)}`);
+    else {
+      out.push(`下家能吃的搭子 ${f.live} 種`);
+      if (f.open > f.live) out.push(`另外 ${f.open - f.live} 種要用他打過的${namesList(f.through, 2)}`);
+    }
     if (next.melds.length) out.push('下家已吃碰');
     return out;
   }
