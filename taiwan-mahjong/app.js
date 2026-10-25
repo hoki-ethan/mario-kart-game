@@ -841,7 +841,7 @@
     const summary = [];
     if (always.length) summary.push(`<b>一律棄胡：</b>${always.join('、')}。就算要打的那張很安全，繼續攻也不划算，改打安全牌。`);
     if (close.length) summary.push(`<b>差不多：</b>${close.join('、')}。攻守的期望值很接近，要打的那張只要有點危險就守。`);
-    if (brave.length) summary.push(`<b>還能攻的：</b>${brave.map(l => `${l.name}（那張放槍率 ${pct(l.bar)} 以下）`).join('、')}。`);
+    if (brave.length) summary.push(`<b>還能攻的：</b>${brave.map(l => `${l.name}（${l.bar >= 0.995 ? '什麼牌都能衝' : `那張放槍率 ${pct(l.bar)} 以下`}）`).join('、')}。`);
     const one = lines[0].r;
     summary.push(`這個設定下，胡一把平均收約 ${money(Math.round(one.gain))} 元，放槍一次約賠 ${money(Math.round(one.loss))} 元；棄胡之後還是有約 ${pct(-one.fold / one.loss)} 會放槍。`);
 

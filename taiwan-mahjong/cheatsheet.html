@@ -453,6 +453,43 @@ section h3 { font-size: 17px; margin-top: 6px; }
     <p>聽牌時攻比守每局多 49–79 元；二近聽以上守比攻多 11–15 元；後段沒聽守比攻多 16 元；一近聽差不多。</p>
     <p>照這張表打，比一直衝每局多 10 元、比一有人聽就棄胡多 12 元（1,800 局）。</p>
   </div>
+
+  <h3>不確定他聽了沒：別急著棄胡</h3>
+  <p>上面的表是「他確定聽了」，但牌桌上沒人會宣告聽牌。他只是可能聽了的話，這張和之後的風險都要打折；而且還沒人聽的時候，你自己胡的機會大很多（中段一近聽、進張 21–30：24–31%，有人聽時只有 11–20%）。同樣中段、他一般，那張（如果他聽了）的放槍率在這以下就攻：</p>
+  <div class="table-wrap">
+    <table class="push-table">
+      <thead><tr><th scope="col">你打完之後</th><th scope="col">確定聽了</th><th scope="col">一半一半</th><th scope="col">不太像（約 1/4）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">聽牌，3–4 張</th><td>37%</td><td>88%</td><td>都能衝</td></tr>
+        <tr><th scope="row">聽牌，1–2 張</th><td>28%</td><td>78%</td><td>都能衝</td></tr>
+        <tr><th scope="row">一近聽，進張 21–30</th><td>19%</td><td>55%</td><td>都能衝</td></tr>
+        <tr><th scope="row">一近聽，進張 11–20</th><td>7%</td><td>35%</td><td>89%</td></tr>
+        <tr><th scope="row">一近聽，進張 10 以下</th><td class="even">差不多</td><td>10%</td><td>31%</td></tr>
+        <tr><th scope="row">二近聽</th><td class="fold">守</td><td class="fold">守</td><td class="even">差不多</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="hint">他聽牌的機會看上面「他聽了沒」那張表；app「自己輸入」會幫你算，「何時棄胡」可以選一半一半、不太像。</p>
+
+  <h3>對手也會棄胡的話</h3>
+  <p>讓三家電腦也照同樣的期望值攻守，同樣 1,600 局比一比（每局多賺幾元）：</p>
+  <div class="table-wrap">
+    <table class="trap-table">
+      <thead><tr><th scope="col">照期望值打，比…</th><th scope="col">對手不棄胡</th><th scope="col">對手也會棄胡</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">一直衝</th><td>+8.3 ± 4.1 元</td><td><b>+11.5 ± 5.5 元</b></td></tr>
+        <tr><th scope="row">一有人聽就棄胡</th><td>+8.7 ± 3.6 元</td><td><b>+11.9 ± 4.9 元</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul>
+    <li><b>對手越會棄胡，越要照期望值打。</b>差距變大，表照用，不用另外調。</li>
+    <li><b>一直衝最吃虧：</b>別人都棄胡時只剩你在打危險牌，一直衝的放槍率 21%。</li>
+    <li><b>流局變多、自摸變重要：</b>流局 13% → 35%，你的胡牌裡自摸 21% → 42%（別人不放槍給你了）。把自摸比例改成 42% 重算，每局差 −0.2 ± 1.9 元，不用改。</li>
+  </ul>
+  <div class="proof">
+    <p><b>實測（沒人告訴你誰聽了，只看巡數、吃碰估他聽牌的機會）：</b>把「可能聽了」打折的算法，比當成「確定聽了」每局多 4.1 ± 3.0 元（3,200 局，兩種對手合起來），胡牌率 6.8% → 9.0%。</p>
+  </div>
 </section>
 
 <section>
