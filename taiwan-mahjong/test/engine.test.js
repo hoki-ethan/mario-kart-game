@@ -431,3 +431,20 @@ test('盯牌: chow shapes, feed risk and the marking answer', () => {
   }
   assert.ok(tb.options.some(r => r.best));
 });
+
+test('unsure tenpai: attacking is worth more while nobody may be tenpai yet', () => {
+  const at = sure => M.foldThreshold({ shanten: 1, useful: 20, wallLeft: 28, base: 100, perTai: 20, dealer: false, sure }).threshold;
+  assert.ok(at(0.25) > at(1));
+  // pushFold mixes in the quiet-hand odds by how likely the threats are tenpai
+  const hand = tiles('123m456m789m1p5p9p13s1z5z7z');
+  const visible = M.toCounts(hand);
+  const flat = new Array(34).fill(0.03);
+  const sure = M.pushFold({ hand, visible, wallLeft: 20, threats: [{ prob: flat, tenpai: 1 }], base: 100, perTai: 20 });
+  const doubt = M.pushFold({ hand, visible, wallLeft: 20, threats: [{ prob: flat, tenpai: 0.2 }], base: 100, perTai: 20 });
+  assert.equal(sure.sure, 1);
+  assert.ok(Math.abs(doubt.sure - 0.2) < 1e-9);
+  // Winning is likelier in a quiet hand; folding early does not get safer
+  const win = pf => pf.rows.find(r => r.tile === tiles('5z')[0]).win;
+  assert.ok(win(doubt) > win(sure));
+  assert.ok(doubt.best.ev > sure.best.ev);
+});

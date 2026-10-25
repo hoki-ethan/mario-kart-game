@@ -1282,11 +1282,17 @@
   // Chance of dealing in on a later turn: keep attacking (by shanten) or fold from now on
   const PUSH_DEAL_IN = [[0.05, 0.11, 0.11, 0.13], [0.08, 0.16, 0.19, 0.2], [0.09, 0.15, 0.22, 0.23], [0.05, 0.14, 0.18, 0.2]];
   const FOLD_DEAL_IN = [0.03, 0.04, 0.05, 0.05];
-  // The same three for when nobody is tenpai yet. Not measured yet: copies of the tables above,
-  // so an unsure threat is treated like a sure one until the quiet-hand numbers are in.
-  const WIN_RATE_QUIET = WIN_RATE;
-  const PUSH_DEAL_IN_QUIET = PUSH_DEAL_IN;
-  const FOLD_DEAL_IN_QUIET = FOLD_DEAL_IN;
+  // The same three at my turns while nobody is tenpai yet (6,000 bot games each for attacking
+  // and for folding from a random turn): winning is much likelier, later deal-ins about the same
+  // when attacking, and folding before anyone is tenpai still deals in later. Thin cells smoothed.
+  const WIN_RATE_QUIET = [
+    { cuts: [2, 4, 6], rows: [[0.3, 0.42, 0.44, 0.44], [0.3, 0.4, 0.5, 0.58], [0.3, 0.62, 0.66, 0.68], [0.5, 0.7, 0.74, 0.79]] },
+    { cuts: [10, 20, 30], rows: [[0.02, 0.065, 0.12, 0.195], [0.06, 0.15, 0.24, 0.28], [0.08, 0.25, 0.31, 0.44], [0.1, 0.33, 0.38, 0.55]] },
+    { cuts: [], rows: [[0.005, 0.022, 0.073, 0.129]] },
+    { cuts: [], rows: [[0, 0.003, 0.025, 0.05]] },
+  ];
+  const PUSH_DEAL_IN_QUIET = [[0.06, 0.08, 0.085, 0.06], [0.066, 0.163, 0.176, 0.157], [0.02, 0.15, 0.2, 0.2], [0, 0.1, 0.186, 0.21]];
+  const FOLD_DEAL_IN_QUIET = [0.023, 0.037, 0.07, 0.08];
   const WIN_STATS = {
     tsumoShare: 0.25, // a quarter of my wins are self-draws
     extraTai: 1.3,    // my average 台 on top of 門清 / 門清自摸
