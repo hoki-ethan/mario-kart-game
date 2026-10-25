@@ -66,6 +66,7 @@
   </div>
   <div class="seg" id="df-mode" role="group" aria-label="防守模式"></div>
   <div id="df-sim" class="panel drill" aria-live="polite"></div>
+  <div id="df-when" class="panel when" hidden></div>
   <div id="df-manual" class="split" hidden>
     <div class="panel">
       <div class="seg wrap" id="dm-target" role="group" aria-label="點牌放到哪裡"></div>
@@ -202,7 +203,7 @@
     </article>
 
     <article class="panel guide-card wide">
-      <h3>攻守：最安全的牌不一定最好</h3>
+      <h3>攻守：什麼時候該攻、什麼時候該棄胡</h3>
       <p>有人聽牌了，要不要衝？看兩件事：你離胡牌多近，還有胡一把收的錢跟放槍賠的錢差多少。電腦牌局（你門清、別人已經聽牌）量出來：</p>
       <div class="table-wrap">
         <table class="clue-table">
@@ -216,8 +217,30 @@
           </tbody>
         </table>
       </div>
-      <p>底 100／每台 20 時，胡一把平均收約 280 元，放槍一次約賠 150 元，胡牌的價值快兩倍。所以<b>聽牌時大多該衝</b>；一近聽要看那張有多危險；<b>二近聽以上就守</b>。</p>
-      <p id="pf-proof">實測 1,800 局電腦牌局（你當莊、門清、底台 100／20；有人聽牌時三種打法才開始不同）：一直衝每局平均 −25.6 元，一有人聽就棄胡 −31.3 元，<b>照期望值打 −18.8 元</b>。照期望值打比一直衝多約 10 元、比一直棄胡多約 12 元，兩個差距都超過誤差範圍。三種都是負的，是因為測試裡你堅持門清、別人都會吃碰，你本來就比較慢。</p>
+      <h4>什麼時候該戰術性放棄胡牌</h4>
+      <p>同一個牌面分成兩條路打完：一條繼續攻、一條從這張開始棄胡，後面摸到的牌一模一樣。2,500 個牌面的結果（每局「攻」比「守」多賺幾元，正數代表該攻）：</p>
+      <div class="table-wrap">
+        <table class="clue-table">
+          <thead><tr><th scope="col">那時你的牌</th><th scope="col">攻 − 守</th><th scope="col">結論</th></tr></thead>
+          <tbody>
+            <tr><td>聽牌，外面 5 張以上能胡</td><td>+79 ± 39 元</td><td>攻</td></tr>
+            <tr><td>聽牌，4 張以下</td><td>+49 ± 25 元</td><td>攻（要打的牌很危險時差不多）</td></tr>
+            <tr><td>一近聽，進張 11 張以上</td><td>+5 ± 13 元</td><td>差不多：牌安全就攻，危險就守</td></tr>
+            <tr><td>一近聽，進張 10 以下</td><td>+6 ± 14 元</td><td>差不多</td></tr>
+            <tr><td><b>二近聽</b></td><td><b>−11 ± 7 元</b></td><td><b>棄胡</b></td></tr>
+            <tr><td><b>三近聽以上</b></td><td><b>−15 ± 8 元</b></td><td><b>棄胡</b></td></tr>
+            <tr><td><b>牌牆剩 16 張以下，你還沒聽</b></td><td><b>−16 ± 11 元</b></td><td><b>棄胡</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li><b>二近聽以上就棄。</b>有人聽了，你還差兩步，就算要打的牌很安全，繼續攻也不划算。</li>
+        <li><b>後段沒聽就棄。</b>牌牆剩 16 張以下還沒聽牌，胡的機會太少。</li>
+        <li><b>他的牌越大越要棄。</b>他有 5 台以上，一近聽也該收；他 8 台時，聽牌也只敢打放槍率三成以下的牌。（電腦對手的牌都不大，這條是模型算的，實測驗不到。）</li>
+        <li><b>聽牌幾乎都衝。</b>胡一把收的錢大約是放槍賠的兩倍。</li>
+        <li><b>底台比例、你是不是莊家，幾乎不影響。</b>收的跟賠的會一起變大。</li>
+      </ul>
+      <p>想看其他情況，到「防守」頁的「何時棄胡」調牌牆、他的台數、他聽了沒。</p>
     </article>
 
     <article class="panel guide-card wide">

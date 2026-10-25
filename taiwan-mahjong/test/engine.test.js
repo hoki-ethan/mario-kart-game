@@ -328,3 +328,14 @@ test('push or fold: attack when a little risk buys tenpai, fold when the hand is
   assert.ok(M.winChance(1, 15, 30) >= M.winChance(1, 15, 6));
   assert.ok(M.winChance(0, 4, 20) > M.winChance(2, 40, 20));
 });
+
+test('fold threshold: far hands always fold, big hands and late turns lower the bar', () => {
+  const at = o => M.foldThreshold(Object.assign({ base: 100, perTai: 20, wallLeft: 28, dealer: false }, o)).threshold;
+  assert.equal(at({ shanten: 2, useful: 30 }), 0);
+  assert.equal(at({ shanten: 1, useful: 6 }), 0);
+  const tenpai = at({ shanten: 0, useful: 8 });
+  assert.ok(tenpai > 0.4);
+  assert.ok(at({ shanten: 0, useful: 8, oppTai: 8 }) < tenpai);
+  assert.ok(at({ shanten: 0, useful: 8, wallLeft: 6 }) < tenpai);
+  assert.ok(at({ shanten: 1, useful: 35 }) > at({ shanten: 1, useful: 15 }));
+});

@@ -64,8 +64,9 @@
     dm: {
       river: tileList('1z 7z 6z 8s 1m 1p 8s 4z 1s 9p 8m 4s'), melds: [], mine: parseTiles('1234m123678899p5688s'),
       seen: M.toCounts(parseTiles('1122235789m123p1112369s1122333444556677z')), target: 'river', example: true, read: null, hint: 11,
-      dealer: false,
+      dealer: false, oppTai: 1.3,
     },
+    dw: { wall: 28, oppTai: 1.3, sure: 1, dealer: false },
     stats: {
       discard: savedStats.discard || newStats(), wait: savedStats.wait || newStats(),
       pushfold: Object.assign({ dealt: 0 }, savedStats.pushfold || newStats()), guess: savedStats.guess || newStats(),
@@ -516,10 +517,12 @@
 
   function renderDefense() {
     const d = S.df;
-    $('#df-mode').innerHTML = segHTML('df-mode', [['sim', '模擬牌局'], ['manual', '自己輸入']], d.mode);
+    $('#df-mode').innerHTML = segHTML('df-mode', [['sim', '模擬牌局'], ['manual', '自己輸入'], ['when', '何時棄胡']], d.mode);
     $('#df-sim').hidden = d.mode !== 'sim';
     $('#df-manual').hidden = d.mode !== 'manual';
+    $('#df-when').hidden = d.mode !== 'when';
     if (d.mode === 'manual') return renderManual();
+    if (d.mode === 'when') return renderWhen();
     if (!d.table && !d.loading) return newTable();
     $('#df-sim').innerHTML = simHTML();
   }
@@ -777,6 +780,67 @@
     renderDefense();
   };
 
+  // ---------- 何時棄胡 ----------
+  const OPP_TAI = [['1.3', '一般（約 1 台）'], ['3', '3 台'], ['5', '5 台'], ['8', '8 台以上']];
+  const WHEN_ROWS = [
+    ['聽牌，外面 7 張以上能胡', 0, 8], ['聽牌，5–6 張', 0, 5.5], ['聽牌，3–4 張', 0, 3.5], ['聽牌，1–2 張', 0, 1.5],
+    ['一近聽，進張 31 張以上', 1, 35], ['一近聽，進張 21–30', 1, 25], ['一近聽，進張 11–20', 1, 15], ['一近聽，進張 10 以下', 1, 6],
+    ['二近聽', 2, 30], ['三近聽以上', 3, 40],
+  ];
+  const WHEN_COLS = [0.01, 0.03, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4];
+
+  // Grid of attack/fold for each hand state against the danger of the tile you would cut
+  function renderWhen() {
+    const w = S.dw;
+    const row = (label, body) => `<div class="cond"><span>${label}</span><span class="cond-body">${body}</span></div>`;
+    const lines = WHEN_ROWS.map(([name, sh, useful]) => {
+      const r = M.foldThreshold({ shanten: sh, useful, wallLeft: w.wall, base: S.sc.base, perTai: S.sc.perTai, oppTai: w.oppTai, dealer: w.dealer });
+      // Attack minus fold when the tile you cut deals in with chance d (folding throws a safe tile)
+      const edge = d => -d * r.loss + (1 - d) * r.attack - r.fold;
+      const tol = Math.max(3, 0.03 * r.loss);
+      // The grid is in "if he is tenpai" terms; doubt about his tenpai stretches the bar
+      return { name, r, edge, tol, bar: Math.min(1, r.threshold / w.sure), clearFold: edge(0) < -tol };
+    });
+    const cells = lines.map(l => `<tr><th scope="row">${l.name}</th>${WHEN_COLS.map(c => {
+      const e = l.edge(c * w.sure);
+      const [cls, text] = e > l.tol ? ['push', '攻'] : e < -l.tol ? ['fold', '守'] : ['even', '≈'];
+      return `<td class="${cls}" title="攻比守${e >= 0 ? '多' : '少'} ${money(Math.round(Math.abs(e)))} 元">${text}</td>`;
+    }).join('')}<td class="bar">${l.clearFold ? '一律守' : l.bar >= 0.995 ? '都能衝' : pct(l.bar)}</td></tr>`).join('');
+
+    const always = lines.filter(l => l.clearFold).map(l => l.name);
+    const close = lines.filter(l => !l.clearFold && l.bar < 0.03).map(l => l.name);
+    const brave = lines.filter(l => !l.clearFold && l.bar >= 0.03);
+    const summary = [];
+    if (always.length) summary.push(`<b>一律棄胡：</b>${always.join('、')}。就算要打的那張很安全，繼續攻也不划算，改打安全牌。`);
+    if (close.length) summary.push(`<b>差不多：</b>${close.join('、')}。攻守的期望值很接近，要打的那張只要有點危險就守。`);
+    if (brave.length) summary.push(`<b>還能攻的：</b>${brave.map(l => `${l.name}（那張放槍率 ${pct(l.bar)} 以下）`).join('、')}。`);
+    const one = lines[0].r;
+    summary.push(`這個設定下，胡一把平均收約 ${money(Math.round(one.gain))} 元，放槍一次約賠 ${money(Math.round(one.loss))} 元；棄胡之後還是有約 ${pct(-one.fold / one.loss)} 會放槍。`);
+
+    $('#df-when').innerHTML = `
+      <div class="view-head"><h3>什麼時候該放棄胡牌</h3>
+        <p class="hint">有人聽牌了，你要攻就得打一張危險牌。表格告訴你：照你離胡牌多近、那張牌多危險，攻和守哪個期望值高。</p></div>
+      <div class="conds">
+        ${row('牌牆還剩', `<span class="seg">${segHTML('dw-wall', [['40', '40 張（前段）'], ['28', '28（中段）'], ['16', '16（後段）'], ['6', '6（尾段）']], w.wall)}</span>`)}
+        ${row('他這手大概', `<span class="seg">${segHTML('dw-opp', OPP_TAI, w.oppTai)}</span>`)}
+        ${row('他聽了嗎', `<span class="seg">${segHTML('dw-sure', [['1', '確定聽了'], ['0.5', '一半一半'], ['0.25', '不太像']], w.sure)}</span>`)}
+        ${row('', `<button type="button" class="chip" data-act="dw-dealer" aria-pressed="${w.dealer}">我是莊家</button><span class="hint">底台照台數頁：${money(S.sc.base)}／${money(S.sc.perTai)}</span>`)}
+      </div>
+      <div class="table-wrap">
+        <table class="when-table">
+          <thead><tr><th scope="col">打完之後，你</th>${WHEN_COLS.map(c => `<th scope="col">${pct(c)}</th>`).join('')}<th scope="col">最多能冒</th></tr></thead>
+          <tbody>${cells}</tbody>
+        </table>
+      </div>
+      <p class="hint">欄位是「要打的那張，如果他聽了會放槍的機率」，防守頁每張牌都有。攻：照牌效打下去；守：從這張開始打安全牌、放棄胡牌；≈：差不到放槍金額的 3%。</p>
+      <div class="when-summary">${summary.map(x => `<p>${x}</p>`).join('')}</div>`;
+  }
+
+  actions['dw-wall'] = v => { S.dw.wall = Number(v); renderWhen(); };
+  actions['dw-opp'] = v => { S.dw.oppTai = Number(v); renderWhen(); };
+  actions['dw-sure'] = v => { S.dw.sure = Number(v); renderWhen(); };
+  actions['dw-dealer'] = () => { S.dw.dealer = !S.dw.dealer; renderWhen(); };
+
   // ---------- 自己輸入 ----------
   const DM_TARGETS = [['river', '他的河'], ['chow', '他吃'], ['pung', '他碰'], ['kong', '他槓'], ['mine', '我的手牌'], ['seen', '其他已見']];
   const DM_HINTS = {
@@ -894,10 +958,11 @@
     const wallLeft = Math.max(0, 56 - 4 * m.river.length);
     const pf = M.pushFold({
       hand: m.mine, visible, wallLeft, threats: [{ prob: m.read.prob, tenpai: pT }],
-      base: S.sc.base, perTai: S.sc.perTai, dealer: m.dealer, seatWind: m.dealer ? 0 : 1,
+      base: S.sc.base, perTai: S.sc.perTai, dealer: m.dealer, seatWind: m.dealer ? 0 : 1, oppTai: m.oppTai,
     });
     const tolerance = Math.max(3, 0.03 * pf.loss);
     return `<h3>攻還是守：打哪張</h3>
+      <div class="cond"><span>他這手大概</span><span class="seg">${segHTML('dm-opp', OPP_TAI, m.oppTai)}</span></div>
       <div class="chips"><button type="button" class="chip" data-act="dm-dealer" aria-pressed="${m.dealer}">我是莊家</button></div>
       <p>${planReasonHTML(pf)}</p>
       ${pushFoldListHTML(pf, { river: m.river, visible, tolerance })}
@@ -911,6 +976,7 @@
 
   actions['dm-target'] = v => { S.dm.target = v; renderManual(); };
   actions['dm-dealer'] = () => { S.dm.dealer = !S.dm.dealer; renderManualResult(); };
+  actions['dm-opp'] = v => { S.dm.oppTai = Number(v); renderManualResult(); };
   actions['dm-hint'] = v => { S.dm.hint = S.dm.hint === Number(v) ? null : Number(v); renderManualResult(); };
   actions['dm-add'] = v => {
     const m = S.dm;

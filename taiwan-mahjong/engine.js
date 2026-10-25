@@ -1155,15 +1155,22 @@
   // For each tile: deal in now, or not and then the better of attacking on
   // (win chance × what a win pays − later deal-in × what it costs) or folding.
   // Payments that do not depend on my choice (others' self-draws) are left out.
-  function pushFold(o) {
-    const base = o.base;
-    const perTai = o.perTai;
+  // What dealing in costs and what a win pays, at these stakes
+  function stakes(o) {
     const dealerTai = o.dealer ? 1 : 0;
     const oppTai = o.oppTai != null ? o.oppTai : WIN_STATS.oppTai;
-    const loss = base + (oppTai + dealerTai) * perTai;
-    const pay = tai => base + (tai + dealerTai) * perTai;
+    const pay = tai => o.base + (tai + dealerTai) * o.perTai;
     const winValue = (ronTai, tsumoTai) =>
       (1 - WIN_STATS.tsumoShare) * pay(ronTai) + WIN_STATS.tsumoShare * 3 * pay(tsumoTai);
+    return {
+      loss: o.base + (oppTai + dealerTai) * o.perTai,
+      winValue,
+      averageWin: winValue(1 + WIN_STATS.extraTai, 3 + WIN_STATS.extraTai),
+    };
+  }
+
+  function pushFold(o) {
+    const { loss, winValue, averageWin } = stakes(o);
     const c = toCounts(o.hand);
     const left = new Array(KINDS);
     for (let t = 0; t < KINDS; t++) left[t] = Math.max(0, 4 - (o.visible[t] || 0));
@@ -1193,7 +1200,7 @@
         }
         gain = winValue(ron / u.total, tsumo / u.total);
       } else {
-        gain = winValue(1 + WIN_STATS.extraTai, 3 + WIN_STATS.extraTai);
+        gain = averageWin;
       }
       c[t]++;
       const win = winChance(u.shanten, u.total, o.wallLeft);
@@ -1209,6 +1216,18 @@
     }
     rows.sort((a, b) => b.ev - a.ev || a.dealIn - b.dealIn);
     return { rows, best: rows[0], loss, foldLater };
+  }
+
+  // 棄胡門檻: the highest deal-in chance the tile you must cut can have before
+  // folding (safe tiles from now on, giving up the win) is worth more.
+  // Attack beats fold when  -d·L + (1-d)·A > -F·L,  i.e.  d < (A + F·L) / (L + A).
+  function foldThreshold(o) {
+    const { loss, averageWin } = stakes(o);
+    const win = winChance(o.shanten, o.useful, o.wallLeft);
+    const attack = win * averageWin - byWall(PUSH_DEAL_IN[Math.min(3, o.shanten)], o.wallLeft) * loss;
+    const foldLater = byWall(FOLD_DEAL_IN, o.wallLeft);
+    const threshold = Math.max(0, Math.min(1, (attack + foldLater * loss) / (loss + attack)));
+    return { threshold, win, gain: averageWin, loss, attack, fold: -foldLater * loss };
   }
 
   // Chance an opponent is already tenpai, by melds called (row: 0, 1, 2, 3+) and
@@ -1231,7 +1250,7 @@
     shanten, shantenRegular, shantenLigu, remainingCounts, usefulTiles, waits, analyze,
     unseenTotal, drawChance, SEATS, valueHonors, botDiscard, botPung, botChow, simulateTable, tableVisible,
     guessWaits, shapeWaits, tenpaiChance, CLUE_FACTORS, waitShapes, tileClues, discardClues, riverSuits,
-    WIN_STATS, winChance, pushFold,
+    WIN_STATS, winChance, pushFold, foldThreshold,
     defaultRules, decompositions, validateWin, scoreHand, dealerTai, settle,
     rng, discardProblem, waitProblem,
   };
