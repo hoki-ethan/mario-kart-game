@@ -1022,11 +1022,14 @@
     nearLatest: 2.0,    // 1-2 steps from his latest discard
     nearEarly: 0.6,     // he discarded a neighbour in the first half of his river
     suji: 0.6,          // he discarded the tile 3 steps away (筋), before his latest discard
-    sujiLatest: 0.75,   // ...only with his latest discard: weakest, over half of these deal-ins are 中洞
+    sujiLatest: 0.75,   // ...only with his latest discard: a bit weaker, and over half of these deal-ins are 中洞
     sujiTrap: 1,        // the player sets 筋 traps on purpose (打五釣二): count it as no protection
     untouchedSuit: 1.7, // he has not discarded this suit at all
     heavySuit: 0.4,     // he has discarded 5+ of this suit
     wall: 0.06,         // every chow that could wait on it is blocked by visible tiles (壁)
+    oneChance: 0.4,     // the best chow left needs a tile with only one copy out (one-chance)
+    interFour: 1.5,     // 間四間: he threw both 1 and 6 (or 2-7, 3-8, 4-9); this is 2 or 5 in between
+    freshHonor: 0.36,   // an honor nobody has shown yet: the riskiest kind of honor (對碰 / 單吊)
     noCopy: 0.25,       // all other copies are visible: no 單吊 / 對碰
     lastCopy: 0.5,      // one copy left: 單吊 only
   };
@@ -1056,7 +1059,7 @@
     const add = (key, extra) => out.push(Object.assign({ key, factor: CLUE_FACTORS[key] }, extra));
     const discarded = river.includes(t);
     if (discarded) add('ownDiscard');
-    if (t >= 27) add('honor');
+    if (t >= 27) add(o.visible[t] ? 'honor' : 'freshHonor');
     else {
       const r = t % 9;
       if (r === 0 || r === 8) add('terminal');
@@ -1085,6 +1088,21 @@
       const blocked = shapes.filter(sh => sh.tiles.length === 2 && sh.tiles[0] !== sh.tiles[1] && !sh.ok);
       if (blocked.length && blocked.length === shapes.filter(sh => sh.kind !== 'single' && sh.kind !== 'pair').length) {
         add('wall', { tiles: unique(blocked.flatMap(sh => sh.blockedBy)) });
+      } else {
+        // one-chance: every chow that still works needs a tile with a single copy left
+        const left = x => Math.max(0, 4 - (o.visible[x] || 0));
+        const chows = shapes.filter(sh => sh.tiles.length === 2 && sh.tiles[0] !== sh.tiles[1] && sh.ok);
+        if (chows.length && chows.every(sh => Math.min(left(sh.tiles[0]), left(sh.tiles[1])) === 1)) {
+          add('oneChance', { tiles: unique(chows.flatMap(sh => sh.tiles.filter(x => left(x) === 1))) });
+        }
+      }
+      if (!discarded) {
+        // 間四間: discards a and a+5 make a+1 and a+4 the classic inside waits (34 waiting 2/5)
+        const base = suitOf(t) * 9;
+        const threw = x => x >= 0 && x < 9 && river.includes(base + x);
+        if ((threw(r - 1) && threw(r + 4)) || (threw(r - 4) && threw(r + 1))) {
+          add('interFour', { tiles: threw(r - 1) && threw(r + 4) ? [t - 1, t + 4] : [t - 4, t + 1] });
+        }
       }
     }
     const left = Math.max(0, 4 - (o.visible[t] || 0));
@@ -1106,6 +1124,15 @@
       for (const k of [-3, 3]) if (r + k >= 0 && r + k < 9) info.suji.push(d + k);
     }
     return info;
+  }
+
+  // Chance he just reached tenpai with this discard, at his 6th to 12th discard, by kind of
+  // tile (1,500 bot games). A middle tile thrown mid-game is the classic tenpai signal.
+  const TENPAI_SIGNAL = { middle: 0.22, twoEight: 0.13, terminal: 0.08, honor: 0.03 };
+  function tenpaiSignal(tile, discards) {
+    if (discards < 6 || discards > 12) return null;
+    const kind = tile >= 27 ? 'honor' : [0, 8].includes(tile % 9) ? 'terminal' : [1, 7].includes(tile % 9) ? 'twoEight' : 'middle';
+    return { kind, chance: TENPAI_SIGNAL[kind] };
   }
 
   // How many of each suit (萬 筒 條 字) he has discarded
@@ -1262,7 +1289,7 @@
     shanten, shantenRegular, shantenLigu, remainingCounts, usefulTiles, waits, analyze,
     unseenTotal, drawChance, SEATS, valueHonors, botDiscard, botPung, botChow, simulateTable, tableVisible,
     guessWaits, shapeWaits, tenpaiChance, CLUE_FACTORS, waitShapes, tileClues, discardClues, riverSuits,
-    WIN_STATS, winChance, pushFold, foldThreshold,
+    WIN_STATS, winChance, pushFold, foldThreshold, tenpaiSignal,
     defaultRules, decompositions, validateWin, scoreHand, dealerTai, settle,
     rng, discardProblem, waitProblem,
   };

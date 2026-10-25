@@ -417,11 +417,14 @@
     nearLatest: { chip: '他剛打的旁邊', say: c => `他最新打的是${namesList(c.tiles, 3)}，就在這張旁邊 1–2 格。聽牌前拆掉的牌，常常就在他聽的牌旁邊。` },
     nearEarly: { chip: '早巡打過旁邊', say: c => `他前半段就打了${namesList(c.tiles, 4)}，很早就不要這一帶。` },
     suji: { chip: '筋', say: c => `他打過隔三格的${namesList(c.tiles, 2)}（筋）：用兩面等這張的機會小一點。筋只擋兩面，${closedText(c)}單吊、對碰照樣會胡。` },
-    sujiLatest: { chip: '剛打的筋', say: c => `筋來自他最新打的${namesList(c.tiles, 1)}，這種筋最不可靠：電腦牌局裡被胡的一半以上是中洞（打五釣二）。${c.closed ? `他可能留著${namesList(c.closed, 2)}等這張。` : '中洞已經被看得到的牌擋住，這點比較放心。'}` },
+    sujiLatest: { chip: '剛打的筋', say: c => `筋來自他最新打的${namesList(c.tiles, 1)}：電腦牌局裡這種筋被胡的時候，一半以上是中洞（打五釣二）。${c.closed ? `他可能留著${namesList(c.closed, 2)}等這張。` : '中洞已經被看得到的牌擋住，這點比較放心。'}` },
     sujiTrap: { chip: '騙筋', say: c => `你設定這家會騙筋：他打過${namesList(c.tiles, 2)}也不算數，當成一般的牌看。${c.closed ? `尤其小心${namesList(c.closed, 2)}的中洞。` : ''}` },
     untouchedSuit: { chip: '他不打這門', say: (c, t) => `${suitName(t)}他一張都沒打，手上可能有很多。` },
     heavySuit: { chip: '這門他狂丟', say: (c, t) => `${suitName(t)}他已經打了 ${c.count} 張，手上這門的牌不多。` },
     wall: { chip: '壁', say: c => `${namesList(c.tiles, 3)}四張都看得到，用順子等這張的聽法全被擋住，只剩單吊、對碰。` },
+    oneChance: { chip: 'one-chance', say: c => `${namesList(c.tiles, 2)}外面只剩 1 張：還能用順子等這張的聽法，都要用到那最後一張，電腦牌局裡被聽的機率剩約 4 成。` },
+    interFour: { chip: '間四間', say: c => `他打過${namesList(c.tiles, 2)}（間四間）：中間這張常常是被留下的兩面在等，電腦牌局裡約 1.5 倍危險。日麻的牌譜研究說這招不準，真人不一定。` },
+    freshHonor: { chip: '生張字', say: () => '這張字牌一張都還沒出現，是字牌裡最危險的一種（電腦牌局 1.8%；已經出現兩張的只有 0.4%），可能是他的對碰或單吊。' },
     noCopy: { chip: '他沒有這張', say: () => '這張四張都在看得到的地方（含你手上的），他不可能有：不會被單吊或對碰。' },
     lastCopy: { chip: '只剩 1 張', say: () => '外面只剩 1 張，他最多單吊這張，不會對碰。' },
   };
@@ -507,6 +510,12 @@
     const name = M.tileName(c.tile);
     const lines = [];
     if (called.includes(i)) lines.push('這張被別人吃碰走了，但還是他打出來的牌，一樣能讀。');
+    const signal = c.latest ? M.tenpaiSignal(c.tile, river.length) : null;
+    if (signal) {
+      const what = { middle: '三到七的中張', twoEight: '二或八', terminal: '一或九', honor: '字牌' }[signal.kind];
+      const compare = signal.kind === 'honor' ? '打中張是 22%' : '打字牌只有 3%';
+      lines.push(`<b>聽牌信號：</b>他第 ${river.length} 張打出${what}。電腦牌局裡，中盤打出${what}時有 ${pct(signal.chance)} 是剛好聽牌（${compare}）。`);
+    }
     if (c.tile >= 27) {
       lines.push('字牌：通常只是在整理手牌，透露的不多。');
     } else if (c.latest) {
@@ -518,7 +527,7 @@
     }
     if (c.suji.length) {
       if (trickster) lines.push(`隔三格的${namesList(c.suji, 2)}看起來是筋，但這家會騙筋，不算數。`);
-      else if (c.latest) lines.push(`<b>小心打五釣二：</b>隔三格的${namesList(c.suji, 2)}看起來是筋，但他剛打這張，這種筋最不可靠，被胡的一半以上是中洞。`);
+      else if (c.latest) lines.push(`<b>小心打五釣二：</b>隔三格的${namesList(c.suji, 2)}看起來是筋，但他剛打這張，這種筋被胡的時候一半以上是中洞。`);
       else lines.push(`隔三格的${namesList(c.suji, 2)}是筋，危險度剩約 6 成；但筋只擋兩面，中洞、單吊、對碰照樣會胡。`);
     }
     lines.push(`${name}本身是現物：電腦牌局裡幾乎不會是他聽的，但不是絕對安全。`);

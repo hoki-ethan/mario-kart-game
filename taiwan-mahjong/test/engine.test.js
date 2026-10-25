@@ -282,7 +282,8 @@ test('reasons: wait shapes, the wall and clues from the river', () => {
   assert.ok(!keys('6m').includes('wall'));
   assert.ok(keys('6m').includes('nearLatest'));
   assert.ok(keys('9m').includes('ownDiscard'));
-  assert.ok(keys('3z').includes('honor'));
+  assert.ok(keys('3z').includes('freshHonor')); // nobody has shown a 西 yet
+  assert.ok(keys('1z').includes('honor'));
   // 條子: he threw one; 萬子 none would be untouchedSuit
   assert.ok(M.tileClues(tiles('5m')[0], { river: tiles('1z2z'), visible: M.toCounts([]) }).some(c => c.key === 'untouchedSuit'));
   // 1 copy left -> 單吊 only
@@ -362,4 +363,23 @@ test('筋 from his latest discard is flagged, and a trickster turns 筋 off', ()
   const b = M.guessWaits({ river: tiles('5m5m5p'), visible: M.toCounts(tiles('5m5m5p')), random: M.rng(3), samples: 800, trickster: true });
   const near5 = p => p[tiles('3m')[0]] + p[tiles('4m')[0]] + p[tiles('6m')[0]] + p[tiles('7m')[0]];
   assert.ok(near5(b.prob) > near5(a.prob));
+});
+
+test('one-chance, 間四間, fresh honors and the mid-game tenpai signal', () => {
+  // Three 七萬 visible: 八萬 can still be waited on with 79 or 67, but only through the last 七萬
+  const vis3 = M.toCounts(tiles('777m'));
+  assert.ok(M.tileClues(tiles('8m')[0], { river: tiles('1z'), visible: vis3 }).some(c => c.key === 'oneChance'));
+  assert.ok(!M.tileClues(tiles('8m')[0], { river: tiles('1z'), visible: M.toCounts([]) }).some(c => c.key === 'oneChance'));
+  // He threw 一萬 and 六萬: 二萬 and 五萬 are the 間四間 tiles
+  const river = tiles('1m6m1z');
+  const v = M.toCounts(river);
+  assert.ok(M.tileClues(tiles('2m')[0], { river, visible: v }).some(c => c.key === 'interFour'));
+  assert.ok(M.tileClues(tiles('5m')[0], { river, visible: v }).some(c => c.key === 'interFour'));
+  assert.ok(!M.tileClues(tiles('3m')[0], { river, visible: v }).some(c => c.key === 'interFour'));
+  // An honor nobody has shown is flagged apart from ordinary honors
+  assert.ok(M.tileClues(tiles('5z')[0], { river, visible: v }).some(c => c.key === 'freshHonor'));
+  assert.ok(M.tileClues(tiles('1z')[0], { river, visible: v }).some(c => c.key === 'honor'));
+  // Mid-game middle tiles signal tenpai more than honors; early discards say nothing
+  assert.ok(M.tenpaiSignal(tiles('5p')[0], 8).chance > M.tenpaiSignal(tiles('3z')[0], 8).chance);
+  assert.equal(M.tenpaiSignal(tiles('5p')[0], 3), null);
 });
