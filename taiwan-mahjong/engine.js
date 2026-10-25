@@ -971,6 +971,7 @@
   // 他聽什麼: assuming the opponent is tenpai, the chance that each tile wins for him.
   //   river:   his discards (claimed ones included)   melds: his called melds [{type, tile}]
   //   visible: counts of every tile I can see (my hand, all rivers, all melds)
+  //   trickster: he keeps shapes next to what he throws on purpose (打五釣二), so don't discount them
   function guessWaits(o) {
     const random = o.random || Math.random;
     const melds = o.melds || [];
@@ -994,7 +995,7 @@
       let wt = 1;
       for (const t of w) if (inRiver[t]) wt *= OWN_DISCARD;
       for (const h of full) {
-        if (h >= 27) continue;
+        if (h >= 27 || o.trickster) continue;
         const r = h % 9;
         for (let d = -2; d <= 2; d++) {
           if (d && r + d >= 0 && r + d < 9 && inRiver[h + d]) wt *= NEAR_DISCARD;
@@ -1020,7 +1021,9 @@
     middle: 1.6,        // 3 to 7
     nearLatest: 2.0,    // 1-2 steps from his latest discard
     nearEarly: 0.6,     // he discarded a neighbour in the first half of his river
-    suji: 0.7,          // he discarded the tile 3 steps away (筋)
+    suji: 0.6,          // he discarded the tile 3 steps away (筋), before his latest discard
+    sujiLatest: 0.75,   // ...only with his latest discard: weakest, over half of these deal-ins are 中洞
+    sujiTrap: 1,        // the player sets 筋 traps on purpose (打五釣二): count it as no protection
     untouchedSuit: 1.7, // he has not discarded this suit at all
     heavySuit: 0.4,     // he has discarded 5+ of this suit
     wall: 0.06,         // every chow that could wait on it is blocked by visible tiles (壁)
@@ -1063,8 +1066,17 @@
       if (!discarded) {
         const early = unique(river.slice(0, Math.ceil(river.length / 2)).filter(x => closeBy(x, t)));
         if (early.length) add('nearEarly', { tiles: early });
-        const suji = unique(river.filter(x => x < 27 && suitOf(x) === suitOf(t) && Math.abs(x - t) === 3));
-        if (suji.length) add('suji', { tiles: suji });
+        // 筋 only rules out a two-sided wait; 中洞 / 單吊 / 對碰 still win on it
+        const isSuji = x => x < 27 && suitOf(x) === suitOf(t) && Math.abs(x - t) === 3;
+        const before = unique(river.slice(0, -1).filter(isSuji));
+        const fromLatest = isSuji(latest);
+        if (before.length || fromLatest) {
+          const closed = waitShapes(t, o.visible).find(sh => sh.kind === 'closed');
+          const extra = { tiles: before.length ? before : [latest], closed: closed && closed.ok ? closed.tiles : null };
+          if (o.trickster) add('sujiTrap', extra);
+          else if (before.length) add('suji', extra);
+          else add('sujiLatest', extra);
+        }
       }
       const sameSuit = river.filter(x => suitOf(x) === suitOf(t)).length;
       if (sameSuit === 0) add('untouchedSuit');

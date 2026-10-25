@@ -165,6 +165,11 @@ td { font-variant-numeric: tabular-nums; border-radius: 4px; }
 .legend .l-even::before { background: var(--even-soft); border: 1px solid var(--muted); }
 .legend .l-fold::before { background: var(--fold-soft); border: 1px solid var(--fold); }
 
+.trap-table tbody th { font-weight: 500; }
+.trap-table td { text-align: left; }
+.trap-table tr.hot th, .trap-table tr.hot td { background: var(--attack-soft); }
+.trap-grid { display: grid; gap: 6px 24px; }
+@media (min-width: 900px) { .trap-grid { grid-template-columns: 1fr 1fr; } }
 .proof { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 14px; }
 .wall-demo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; }
 
@@ -242,7 +247,7 @@ td { font-variant-numeric: tabular-nums; border-radius: 4px; }
   <div class="axis" aria-hidden="true"><span></span><span class="ends"><span>← 比較安全</span><span>比較危險 →</span></span><span></span></div>
   <ul>
     <li><b>前半段</b>就打掉旁邊的牌：從 8.1% 降到 4.9%，他很早就不要這一帶。後半段打的沒有這個效果。</li>
-    <li><b>筋</b>（他打過隔三格的牌）：從 7.8% 降到 5.4%。台灣沒有振聽，比日麻弱，但還是有用。</li>
+    <li><b>筋</b>（隔三格的牌他早就打過）：從 8.0% 降到 5.0%。筋只擋兩面，中洞、單吊、對碰照樣胡。</li>
   </ul>
   <div class="wall-demo">
     <span>壁的例子：</span>
@@ -267,6 +272,35 @@ td { font-variant-numeric: tabular-nums; border-radius: 4px; }
     </table>
   </div>
   <p><b>吃碰兩組、打出 10 張，就有一半機會已經聽了。</b>吃碰越多越早要防。</p>
+</section>
+
+<section class="wide trap">
+  <p class="phase">每一巡</p>
+  <h2>遇到會「打五釣二胡中洞」的人</h2>
+  <p>他打出五萬，讓你以為二萬、八萬是筋很安全，手上其實留著一三萬（或七九萬）等中洞。800 局電腦牌局裡，連電腦都會這樣聽牌：</p>
+  <div class="table-wrap">
+    <table class="trap-table">
+      <thead><tr><th scope="col">那張數字牌</th><th scope="col">被聽的機率</th><th scope="col">被胡的時候是</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">不是筋</th><td>8.0%</td><td>兩面 64%、中洞 16%</td></tr>
+        <tr><th scope="row">筋，他前半段打的</th><td>5.0%</td><td>兩面 45%、對碰 24%、中洞 11%</td></tr>
+        <tr><th scope="row">筋，他後半段打的</th><td>5.2%</td><td>兩面 50%、中洞 23%</td></tr>
+        <tr class="hot"><th scope="row">筋，來自他最新打的那張</th><td><b>6.1%</b></td><td><b>中洞 54%</b>、兩面 32%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="trap-grid">
+    <ol>
+      <li><b>他剛打的那張，筋最不可靠。</b>聽牌時拆掉的五萬，常常就是從一三五萬拆出來的，剩一三萬等二萬。</li>
+      <li><b>打筋牌前先看中洞。</b>要打二萬，就看一萬、三萬：任一種四張都看得到，中洞就不可能。</li>
+      <li><b>他早巡打過一萬或三萬</b>，留一三萬中洞的機會就小。</li>
+    </ol>
+    <ol start="4">
+      <li><b>真正安全的是現物、壁、字牌</b>（0.1–0.4%），不是筋（5–6%）。真要防守，先打那些。</li>
+      <li><b>遇到常騙筋的人</b>，筋全部當一般的牌看；app「自己輸入」打開「這家會騙筋」。</li>
+      <li><b>反過來用：</b>你手上一三五萬又剛好能聽，打五萬等二萬的中洞，信筋的人最容易放槍給你。</li>
+    </ol>
+  </div>
 </section>
 
 <section class="wide">

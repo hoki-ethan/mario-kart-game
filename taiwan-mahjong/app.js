@@ -416,7 +416,9 @@
     middle: { chip: '中張', say: () => '三到七能湊的聽法最多（兩種兩面、嵌張、單吊、對碰），本來就比較危險。' },
     nearLatest: { chip: '他剛打的旁邊', say: c => `他最新打的是${namesList(c.tiles, 3)}，就在這張旁邊 1–2 格。聽牌前拆掉的牌，常常就在他聽的牌旁邊。` },
     nearEarly: { chip: '早巡打過旁邊', say: c => `他前半段就打了${namesList(c.tiles, 4)}，很早就不要這一帶。` },
-    suji: { chip: '筋', say: c => `他打過隔三格的${namesList(c.tiles, 2)}（筋），用兩面等這張的機會小一點。台灣沒有振聽，效果比日麻弱。` },
+    suji: { chip: '筋', say: c => `他打過隔三格的${namesList(c.tiles, 2)}（筋）：用兩面等這張的機會小一點。筋只擋兩面，${closedText(c)}單吊、對碰照樣會胡。` },
+    sujiLatest: { chip: '剛打的筋', say: c => `筋來自他最新打的${namesList(c.tiles, 1)}，這種筋最不可靠：電腦牌局裡被胡的一半以上是中洞（打五釣二）。${c.closed ? `他可能留著${namesList(c.closed, 2)}等這張。` : '中洞已經被看得到的牌擋住，這點比較放心。'}` },
+    sujiTrap: { chip: '騙筋', say: c => `你設定這家會騙筋：他打過${namesList(c.tiles, 2)}也不算數，當成一般的牌看。${c.closed ? `尤其小心${namesList(c.closed, 2)}的中洞。` : ''}` },
     untouchedSuit: { chip: '他不打這門', say: (c, t) => `${suitName(t)}他一張都沒打，手上可能有很多。` },
     heavySuit: { chip: '這門他狂丟', say: (c, t) => `${suitName(t)}他已經打了 ${c.count} 張，手上這門的牌不多。` },
     wall: { chip: '壁', say: c => `${namesList(c.tiles, 3)}四張都看得到，用順子等這張的聽法全被擋住，只剩單吊、對碰。` },
@@ -446,8 +448,12 @@
     }).join('') + '</ul>';
   }
 
+  function closedText(c) {
+    return c.closed ? `中洞（${namesList(c.closed, 2)}）、` : '中洞、';
+  }
+
   function whyHTML(t, ctx, p) {
-    const clues = M.tileClues(t, { river: ctx.river, visible: ctx.visible });
+    const clues = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster });
     const list = clues.map(c => `<li>${clueChipHTML(c)}<span class="clue-factor">${factorText(c.factor)}</span><span>${CLUE_TEXT[c.key].say(c, t)}</span></li>`).join('');
     return `<details class="why"><summary>為什麼是 ${pct(p)}</summary>
       <p class="hint">誰能用什麼聽法胡${M.tileName(t)}：</p>
@@ -463,7 +469,7 @@
     const max = Math.max(0.01, ...rows.map(r => r.p));
     return '<ul class="dlist">' + rows.map(({ t, p }) => {
       const hit = ctx.actual && ctx.actual.includes(t);
-      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible }).map(clueChipHTML).join('');
+      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster }).map(clueChipHTML).join('');
       return `<li class="dl-row${hit ? ' hit' : ''}${ctx.chosen === t ? ' chosen' : ''}">
         ${tileHTML(t, { size: 'sm' })}
         <div class="dl-main">
@@ -477,7 +483,7 @@
   }
 
   // 讀河: suit counts plus what the tapped discard tells you
-  function riverReadHTML(river, called, selected, act) {
+  function riverReadHTML(river, called, selected, act, trickster) {
     const n = M.riverSuits(river);
     const notes = [];
     for (let s = 0; s < 3; s++) {
@@ -492,11 +498,11 @@
     return `<div class="read-box">
       <p><b>他的河：</b>萬 ${n[0]}・筒 ${n[1]}・條 ${n[2]}・字 ${n[3]} 張。${notes.join('')}</p>
       <div class="tiles tight">${tiles}</div>
-      ${selected == null || selected >= river.length ? '<p class="hint">點他河裡的牌，看那張透露什麼。</p>' : discardHintHTML(river, called, selected)}
+      ${selected == null || selected >= river.length ? '<p class="hint">點他河裡的牌，看那張透露什麼。</p>' : discardHintHTML(river, called, selected, trickster)}
     </div>`;
   }
 
-  function discardHintHTML(river, called, i) {
+  function discardHintHTML(river, called, i, trickster) {
     const c = M.discardClues(river, i);
     const name = M.tileName(c.tile);
     const lines = [];
@@ -510,7 +516,11 @@
     } else {
       lines.push('後半段打的，但不是最新一張：電腦牌局裡，它旁邊的牌沒有比較安全，參考價值低。');
     }
-    if (c.suji.length) lines.push(`隔三格的${namesList(c.suji, 2)}是筋，危險度剩約 7 成（台灣沒有振聽，比日麻弱）。`);
+    if (c.suji.length) {
+      if (trickster) lines.push(`隔三格的${namesList(c.suji, 2)}看起來是筋，但這家會騙筋，不算數。`);
+      else if (c.latest) lines.push(`<b>小心打五釣二：</b>隔三格的${namesList(c.suji, 2)}看起來是筋，但他剛打這張，這種筋最不可靠，被胡的一半以上是中洞。`);
+      else lines.push(`隔三格的${namesList(c.suji, 2)}是筋，危險度剩約 6 成；但筋只擋兩面，中洞、單吊、對碰照樣會胡。`);
+    }
     lines.push(`${name}本身是現物：電腦牌局裡幾乎不會是他聽的，但不是絕對安全。`);
     return `<div class="hint-note"><p class="hint-title">第 ${i + 1} 張・${name}</p><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul></div>`;
   }
@@ -678,7 +688,7 @@
     return '<ul class="dlist">' + pf.rows.map((r, i) => {
       const t = r.tile;
       const hit = ctx.actual && ctx.actual.includes(t);
-      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible }).map(clueChipHTML).join('');
+      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster }).map(clueChipHTML).join('');
       const isBest = r.ev >= pf.best.ev - ctx.tolerance;
       return `<li class="dl-row pf-row${isBest ? ' best' : ''}${hit ? ' hit' : ''}${ctx.chosen === t ? ' chosen' : ''}">
         ${tileHTML(t, { size: 'sm' })}
@@ -911,7 +921,7 @@
     clearTimeout(readTimer);
     readTimer = setTimeout(() => {
       if (!m.river.length && !m.melds.length) return;
-      m.read = M.guessWaits({ river: m.river, melds: m.melds, visible: manualVisible() });
+      m.read = M.guessWaits({ river: m.river, melds: m.melds, visible: manualVisible(), trickster: m.trickster });
       renderManualResult();
     }, 250);
   }
@@ -939,7 +949,8 @@
         <p class="sub">如果他聽了：${likely}。他現在已經聽牌的機率約 ${pct(pT)}（照 2,400 局電腦牌局的巡目跟吃碰組數估的）。</p>
       </div>
       <h3>讀他的河</h3>
-      ${riverReadHTML(m.river, [], m.hint, 'dm-hint')}
+      <div class="chips"><button type="button" class="chip" data-act="dm-trick" aria-pressed="${!!m.trickster}">這家會騙筋（打五釣二）</button></div>
+      ${riverReadHTML(m.river, [], m.hint, 'dm-hint', m.trickster)}
       ${manualDecisionHTML(kinds, visible, pT)}
       <h3>他聽每張牌的機率</h3>
       ${heatGridHTML(m.read.prob, visible, null)}
@@ -952,7 +963,7 @@
     if (!kinds.length) return '';
     if (m.mine.length !== 17) {
       return `<h3>我的牌：如果他聽了，打出去會放槍的機率</h3>
-        ${dangerListHTML(kinds, m.read.prob, 1, { river: m.river, visible })}
+        ${dangerListHTML(kinds, m.read.prob, 1, { river: m.river, visible, trickster: m.trickster })}
         <p class="hint">只算這一家。他還沒聽的話，實際風險再乘上 ${pct(pT)}。放滿 17 張（剛摸完牌）就會幫你算攻還是守。</p>`;
     }
     const wallLeft = Math.max(0, 56 - 4 * m.river.length);
@@ -965,7 +976,7 @@
       <div class="cond"><span>他這手大概</span><span class="seg">${segHTML('dm-opp', OPP_TAI, m.oppTai)}</span></div>
       <div class="chips"><button type="button" class="chip" data-act="dm-dealer" aria-pressed="${m.dealer}">我是莊家</button></div>
       <p>${planReasonHTML(pf)}</p>
-      ${pushFoldListHTML(pf, { river: m.river, visible, tolerance })}
+      ${pushFoldListHTML(pf, { river: m.river, visible, tolerance, trickster: m.trickster })}
       <p class="hint">只算這一家，他聽牌的機率用 ${pct(pT)}。牌牆大約剩 ${wallLeft} 張（照他打了幾張估）。底台照台數頁：${money(S.sc.base)}／${money(S.sc.perTai)}。</p>`;
   }
 
@@ -976,6 +987,7 @@
 
   actions['dm-target'] = v => { S.dm.target = v; renderManual(); };
   actions['dm-dealer'] = () => { S.dm.dealer = !S.dm.dealer; renderManualResult(); };
+  actions['dm-trick'] = () => { S.dm.trickster = !S.dm.trickster; scheduleRead(); };
   actions['dm-opp'] = v => { S.dm.oppTai = Number(v); renderManualResult(); };
   actions['dm-hint'] = v => { S.dm.hint = S.dm.hint === Number(v) ? null : Number(v); renderManualResult(); };
   actions['dm-add'] = v => {

@@ -277,7 +277,7 @@ test('reasons: wait shapes, the wall and clues from the river', () => {
   assert.deepEqual(eight.filter(s => s.ok).map(s => s.kind), ['single', 'pair']);
   assert.ok(keys('8m').includes('wall'));
   assert.ok(keys('8m').includes('nearEarly')); // 九萬 was thrown early
-  assert.ok(keys('8m').includes('suji'));      // 五萬 is three away
+  assert.ok(keys('8m').includes('sujiLatest')); // 五萬 is three away, and it is his latest discard
   // 六萬 still has the 45萬 two-sided shape, and sits next to his latest discard 五萬
   assert.ok(!keys('6m').includes('wall'));
   assert.ok(keys('6m').includes('nearLatest'));
@@ -338,4 +338,28 @@ test('fold threshold: far hands always fold, big hands and late turns lower the 
   assert.ok(at({ shanten: 0, useful: 8, oppTai: 8 }) < tenpai);
   assert.ok(at({ shanten: 0, useful: 8, wallLeft: 6 }) < tenpai);
   assert.ok(at({ shanten: 1, useful: 35 }) > at({ shanten: 1, useful: 15 }));
+});
+
+test('筋 from his latest discard is flagged, and a trickster turns 筋 off', () => {
+  // He just threw 五萬; 二萬 is its 筋, and the 一三萬 中洞 is still possible
+  const river = tiles('1z9p5m');
+  const visible = M.toCounts(river);
+  const two = M.tileClues(tiles('2m')[0], { river, visible });
+  const latest = two.find(c => c.key === 'sujiLatest');
+  assert.ok(latest);
+  assert.deepEqual(latest.closed.map(M.tileName), ['一萬', '三萬']);
+  // The same 筋 thrown earlier counts as normal 筋
+  const early = M.tileClues(tiles('2m')[0], { river: tiles('5m1z9p'), visible });
+  assert.ok(early.some(c => c.key === 'suji'));
+  // All four 三萬 visible: no 中洞 left to worry about
+  const walled = M.tileClues(tiles('2m')[0], { river, visible: M.toCounts(river.concat(tiles('3333m'))) });
+  assert.equal(walled.find(c => c.key === 'sujiLatest').closed, null);
+  // Against someone who sets 筋 traps it is no protection at all
+  const trap = M.tileClues(tiles('2m')[0], { river, visible, trickster: true });
+  assert.equal(trap.find(c => c.key === 'sujiTrap').factor, 1);
+  // ...and the read model stops discounting shapes next to his discards
+  const a = M.guessWaits({ river: tiles('5m5m5p'), visible: M.toCounts(tiles('5m5m5p')), random: M.rng(3), samples: 800 });
+  const b = M.guessWaits({ river: tiles('5m5m5p'), visible: M.toCounts(tiles('5m5m5p')), random: M.rng(3), samples: 800, trickster: true });
+  const near5 = p => p[tiles('3m')[0]] + p[tiles('4m')[0]] + p[tiles('6m')[0]] + p[tiles('7m')[0]];
+  assert.ok(near5(b.prob) > near5(a.prob));
 });
