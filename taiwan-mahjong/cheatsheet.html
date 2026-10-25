@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>大殺四方訣竅</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one scroll in the order of a hand (before the table → opening → every turn → someone is tenpai → paying),
+   the three rules that matter most up top; two columns on wide screens, one on phones. Same tiles and jade as the app. */
+:root {
+  --bg: #e7ede8;
+  --surface: #f7faf7;
+  --ink: #16231c;
+  --muted: #56685e;
+  --line: #c9d6cd;
+  --accent: #0d6a4b;
+  --accent-soft: #d3eadf;
+  /* attack / fold diverge around a neutral "close call" (checked for colour-blind separation) */
+  --attack: #b8322a;
+  --attack-soft: #f6e0dc;
+  --fold: #1d5fae;
+  --fold-soft: #dde7f4;
+  --even-soft: #e6ebe7;
+  /* tenpai-chance steps, one hue light to dark */
+  --seq-1: #f8ebe8; --seq-2: #f1cfc8; --seq-3: #e3a597; --seq-4: #cf6f5f; --seq-5: #b8322a;
+  --seq-5-ink: #ffffff;
+  --tile-face: #fbf7ea;
+  --tile-edge: #e2dac2;
+  --tile-back: #0d6a4b;
+  --tile-man: #b3261e;
+  --tile-ink: #1c1c1a;
+  --shadow: rgba(14, 42, 30, 0.16);
+  --font-display: "LXGW WenKai TC", "BiauKai", "Kaiti TC", "DFKai-SB", "標楷體", serif;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1713; --surface: #14221c; --ink: #e3ece6; --muted: #93a89c; --line: #26392f;
+    --accent: #3cb788; --accent-soft: #1a3a2c;
+    --attack: #e06657; --attack-soft: #3b1d1a; --fold: #6592dc; --fold-soft: #182a42; --even-soft: #222c27;
+    --seq-1: #241917; --seq-2: #44231f; --seq-3: #6e2f28; --seq-4: #a3443a; --seq-5: #e06657;
+    --seq-5-ink: #14221c;
+    --tile-face: #eee8d6; --tile-edge: #cfc6ab; --tile-back: #1f8a62; --shadow: rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1713; --surface: #14221c; --ink: #e3ece6; --muted: #93a89c; --line: #26392f;
+  --accent: #3cb788; --accent-soft: #1a3a2c;
+  --attack: #e06657; --attack-soft: #3b1d1a; --fold: #6592dc; --fold-soft: #182a42; --even-soft: #222c27;
+  --seq-1: #241917; --seq-2: #44231f; --seq-3: #6e2f28; --seq-4: #a3443a; --seq-5: #e06657;
+  --seq-5-ink: #14221c;
+  --tile-face: #eee8d6; --tile-edge: #cfc6ab; --tile-back: #1f8a62; --shadow: rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 18px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; line-height: 1.25; margin: 0; text-wrap: balance; }
+p, ul, ol { margin: 0; }
+ul, ol { padding-left: 1.25em; display: grid; gap: 6px; }
+b { font-weight: 700; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--fold); outline-offset: 2px; }
+
+/* header */
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; }
+.head h1 { font-size: 38px; letter-spacing: 0.06em; }
+.head p { color: var(--muted); }
+.head .sub { display: grid; gap: 2px; }
+.back { margin-left: auto; font-size: 14px; }
+
+.tile {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 26px; height: 35px; border-radius: 5px; vertical-align: middle;
+  background: var(--tile-face); border: 1px solid var(--tile-edge);
+  box-shadow: 0 2px 0 var(--tile-back), 0 3px 5px var(--shadow);
+  font-family: var(--font-display); font-weight: 700; line-height: 1; color: var(--tile-ink);
+  margin: 0 1px 2px;
+}
+.tile .n { font-size: 14px; }
+.tile .s { font-size: 9px; color: var(--tile-man); }
+.tile.big { width: 44px; height: 59px; border-radius: 7px; box-shadow: 0 3px 0 var(--tile-back), 0 5px 8px var(--shadow); transform: rotate(-6deg); }
+.tile.big .h { font-size: 32px; color: var(--tile-man); }
+
+/* the three rules */
+.top3 {
+  display: grid; gap: 10px; padding: 16px 18px; border-radius: 14px;
+  background: var(--accent); color: var(--surface);
+}
+.top3 h2 { font-size: 20px; }
+.top3 ol { gap: 8px; font-size: 16px; }
+.top3 li::marker { font-family: var(--font-display); font-weight: 700; }
+
+/* sections */
+.grid { display: grid; gap: 18px; }
+@media (min-width: 900px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wide { grid-column: 1 / -1; }
+}
+section {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0;
+}
+.phase { font-size: 12px; letter-spacing: 0.14em; color: var(--accent); font-weight: 700; }
+section h2 { font-size: 22px; }
+.hint { color: var(--muted); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; }
+.chips li { padding: 3px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 14px; }
+
+/* clue chart: bars diverge from the average tile (4.9%) */
+.clues { display: grid; gap: 6px; }
+.clue-row { display: grid; grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) 3.4em; gap: 10px; align-items: center; font-size: 14px; }
+.clue-row .name { min-width: 0; }
+.clue-row .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.track { position: relative; height: 14px; }
+.track::before { content: ""; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--muted); }
+.bar { position: absolute; top: 0; height: 14px; }
+.bar.safe { right: 50%; background: var(--fold); border-radius: 4px 0 0 4px; }
+.bar.risk { left: 50%; background: var(--attack); border-radius: 0 4px 4px 0; }
+.clue-row.avg .name, .clue-row.avg .val { color: var(--muted); font-weight: 500; }
+.axis { display: grid; grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) 3.4em; gap: 10px; font-size: 12px; color: var(--muted); }
+.axis .ends { display: flex; justify-content: space-between; }
+
+/* tables */
+.table-wrap { overflow-x: auto; }
+table { border-collapse: separate; border-spacing: 2px; width: 100%; font-size: 14px; }
+th, td { padding: 6px 8px; text-align: center; }
+thead th { font-weight: 500; color: var(--muted); font-size: 12px; }
+tbody th { text-align: left; font-weight: 500; white-space: nowrap; }
+td { font-variant-numeric: tabular-nums; border-radius: 4px; }
+.heat td { color: var(--ink); }
+.heat td.s1 { background: var(--seq-1); }
+.heat td.s2 { background: var(--seq-2); }
+.heat td.s3 { background: var(--seq-3); }
+.heat td.s4 { background: var(--seq-4); }
+.heat td.s5 { background: var(--seq-5); color: var(--seq-5-ink); font-weight: 700; }
+.push-table td { background: var(--attack-soft); }
+.push-table td.fold { background: var(--fold-soft); font-weight: 700; }
+.push-table td.even { background: var(--even-soft); font-weight: 700; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legend .l-push::before { background: var(--attack-soft); border: 1px solid var(--attack); }
+.legend .l-even::before { background: var(--even-soft); border: 1px solid var(--muted); }
+.legend .l-fold::before { background: var(--fold-soft); border: 1px solid var(--fold); }
+
+.proof { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 14px; }
+.wall-demo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; }
+
+.foot { color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="head">
+  <span class="tile big" aria-hidden="true"><span class="h">中</span></span>
+  <div class="sub">
+    <h1>大殺四方訣竅</h1>
+    <p>台灣十六張・上桌前看這頁就夠了</p>
+  </div>
+  <a class="back" href="index.html">打開練習 app</a>
+</header>
+
+<div class="top3" role="note">
+  <h2>最重要的三句話</h2>
+  <ol>
+    <li><b>有人聽了：你聽牌就衝，二近聽以上就收。</b>一近聽看要打的那張危不危險。</li>
+    <li><b>他剛打的那張旁邊最危險，他打過的牌最安全。</b>台灣沒有振聽，但他很少留著胡自己打過的牌。</li>
+    <li><b>先比幾近聽，再比進張。</b>兩面 8 張，嵌張、邊張只有 4 張。</li>
+  </ol>
+</div>
+
+<div class="grid">
+
+<section>
+  <p class="phase">上桌前</p>
+  <h2>先問清楚規則</h2>
+  <ul class="chips">
+    <li>底多少、一台多少</li>
+    <li>連莊拉莊怎麼算</li>
+    <li>花算不算台</li>
+    <li>嚦咕嚦咕、八仙過海幾台</li>
+    <li>天胡地胡幾台</li>
+    <li>槓要不要另外收錢</li>
+    <li>詐胡、相公怎麼罰</li>
+    <li>有沒有過水</li>
+    <li>海底留幾墩</li>
+  </ul>
+  <p class="hint">台數跟這裡不一樣，就到 app 的「小抄」改成你家的。</p>
+</section>
+
+<section>
+  <p class="phase">開局</p>
+  <h2>牌效六條</h2>
+  <ol>
+    <li><b>先比幾近聽，再比進張。</b>一樣近就選能進的牌多的。</li>
+    <li><b>兩面最好。</b>34 等 2、5 有 8 張；35 嵌張、12 邊張都只有 4 張。</li>
+    <li><b>手上留六塊。</b>5 組加 1 對：面子、搭子、對子湊 6 塊，太多先拆邊張、嵌張。</li>
+    <li><b>孤張字先走。</b>客風最先打；中發白和自己的風場上出過一張就別留。</li>
+    <li><b>門清值錢。</b>門清 1 台、門清自摸 3 台，牌好別亂吃碰。</li>
+    <li><b>聽牌選好胡的。</b>同樣張數，等字牌、1、9 比等中張容易有人打。</li>
+  </ol>
+</section>
+
+<section>
+  <p class="phase">每一巡</p>
+  <h2>讀河：他會不會聽這張</h2>
+  <p class="hint">600 局電腦牌局，聽牌那家的每張牌被他聽的機率。中線是一般的牌 4.9%。</p>
+  <div class="clues" role="list">
+    <div class="clue-row" role="listitem" title="他自己打過這張：0.1%"><span class="name">他打過這張（現物）</span><span class="track"><span class="bar safe" style="width:48%"></span></span><span class="val">0.1%</span></div>
+    <div class="clue-row" role="listitem" title="順子聽法全被看得到的牌擋住：0.3%"><span class="name">順子全被擋（壁）</span><span class="track"><span class="bar safe" style="width:46%"></span></span><span class="val">0.3%</span></div>
+    <div class="clue-row" role="listitem" title="字牌：0.4%"><span class="name">字牌</span><span class="track"><span class="bar safe" style="width:45%"></span></span><span class="val">0.4%</span></div>
+    <div class="clue-row" role="listitem" title="這門他打了 5 張以上：2.0%"><span class="name">這門他打 5 張以上</span><span class="track"><span class="bar safe" style="width:29%"></span></span><span class="val">2.0%</span></div>
+    <div class="clue-row" role="listitem" title="一、九：3.3%"><span class="name">一、九</span><span class="track"><span class="bar safe" style="width:16%"></span></span><span class="val">3.3%</span></div>
+    <div class="clue-row avg" role="listitem" title="一般的牌：4.9%"><span class="name">一般的牌</span><span class="track"></span><span class="val">4.9%</span></div>
+    <div class="clue-row" role="listitem" title="三到七：7.8%"><span class="name">三到七</span><span class="track"><span class="bar risk" style="width:29%"></span></span><span class="val">7.8%</span></div>
+    <div class="clue-row" role="listitem" title="這門他一張都沒打：8.1%"><span class="name">這門他一張都沒打</span><span class="track"><span class="bar risk" style="width:32%"></span></span><span class="val">8.1%</span></div>
+    <div class="clue-row" role="listitem" title="他最新打的那張旁邊 1–2 格：9.6%"><span class="name"><b>他最新那張旁邊</b></span><span class="track"><span class="bar risk" style="width:47%"></span></span><span class="val">9.6%</span></div>
+  </div>
+  <div class="axis" aria-hidden="true"><span></span><span class="ends"><span>← 比較安全</span><span>比較危險 →</span></span><span></span></div>
+  <ul>
+    <li><b>前半段</b>就打掉旁邊的牌：從 8.1% 降到 4.9%，他很早就不要這一帶。後半段打的沒有這個效果。</li>
+    <li><b>筋</b>（他打過隔三格的牌）：從 7.8% 降到 5.4%。台灣沒有振聽，比日麻弱，但還是有用。</li>
+  </ul>
+  <div class="wall-demo">
+    <span>壁的例子：</span>
+    <span aria-label="四張七萬"><span class="tile"><span class="n">七</span><span class="s">萬</span></span><span class="tile"><span class="n">七</span><span class="s">萬</span></span><span class="tile"><span class="n">七</span><span class="s">萬</span></span><span class="tile"><span class="n">七</span><span class="s">萬</span></span></span>
+    <span>都看得到 → 八萬、九萬只剩單吊、對碰會放槍。</span>
+  </div>
+</section>
+
+<section>
+  <p class="phase">每一巡</p>
+  <h2>他聽了沒</h2>
+  <p class="hint">2,400 局電腦牌局：已經聽牌的機率，看他打出幾張、吃碰幾組。</p>
+  <div class="table-wrap">
+    <table class="heat">
+      <thead><tr><th scope="col">打出</th><th scope="col">4 張</th><th scope="col">6</th><th scope="col">8</th><th scope="col">10</th><th scope="col">12</th><th scope="col">14</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">門清</th><td class="s1">1%</td><td class="s1">6%</td><td class="s2">14%</td><td class="s2">24%</td><td class="s3">33%</td><td class="s3">44%</td></tr>
+        <tr><th scope="row">吃碰 1 組</th><td class="s1">3%</td><td class="s1">9%</td><td class="s2">19%</td><td class="s3">31%</td><td class="s4">45%</td><td class="s4">58%</td></tr>
+        <tr><th scope="row">吃碰 2 組</th><td class="s1">7%</td><td class="s2">20%</td><td class="s3">34%</td><td class="s4">48%</td><td class="s4">64%</td><td class="s5">71%</td></tr>
+        <tr><th scope="row">吃碰 3 組</th><td class="s3">33%</td><td class="s3">43%</td><td class="s4">58%</td><td class="s5">68%</td><td class="s5">76%</td><td class="s5">81%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><b>吃碰兩組、打出 10 張，就有一半機會已經聽了。</b>吃碰越多越早要防。</p>
+</section>
+
+<section class="wide">
+  <p class="phase">有人聽牌</p>
+  <h2>攻還是守：什麼時候該放棄胡牌</h2>
+  <p>你要攻就得打一張危險牌。表裡的數字是：<b>那張牌（如果他聽了）的放槍率在這以下，就攻</b>；超過就改打安全牌、放棄胡牌。防守頁每張牌都會算放槍率。</p>
+  <div class="table-wrap">
+    <table class="push-table">
+      <thead><tr><th scope="col">你打完之後</th><th scope="col">中段・他一般</th><th scope="col">後段・他一般</th><th scope="col">中段・他 8 台</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">聽牌，外面 7 張以上</th><td>48%</td><td>46%</td><td>29%</td></tr>
+        <tr><th scope="row">聽牌，5–6 張</th><td>47%</td><td>45%</td><td>28%</td></tr>
+        <tr><th scope="row">聽牌，3–4 張</th><td>37%</td><td>30%</td><td>20%</td></tr>
+        <tr><th scope="row">聽牌，1–2 張</th><td>28%</td><td>27%</td><td>14%</td></tr>
+        <tr><th scope="row">一近聽，進張 31 以上</th><td>30%</td><td>18%</td><td>12%</td></tr>
+        <tr><th scope="row">一近聽，進張 21–30</th><td>19%</td><td>7%</td><td>4%</td></tr>
+        <tr><th scope="row">一近聽，進張 11–20</th><td>7%</td><td class="even">差不多</td><td class="fold">守</td></tr>
+        <tr><th scope="row">一近聽，進張 10 以下</th><td class="even">差不多</td><td class="fold">守</td><td class="fold">守</td></tr>
+        <tr><th scope="row">二近聽</th><td class="fold">守</td><td class="fold">守</td><td class="fold">守</td></tr>
+        <tr><th scope="row">三近聽以上</th><td class="fold">守</td><td class="fold">守</td><td class="fold">守</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="legend"><span class="l-push">數字以下就攻</span><span class="l-even">差不多：那張有點危險就守</span><span class="l-fold">一律棄胡</span></div>
+  <p class="hint">中段＝牌牆剩約 28 張，後段＝剩約 16 張。底台 100／20、你是閒家；底台比例和是不是莊家幾乎不改變這張表。</p>
+  <ul>
+    <li><b>二近聽以上就棄。</b>就算要打的牌很安全，繼續攻也不划算。</li>
+    <li><b>後段沒聽就棄。</b>牌牆剩 16 張以下還沒聽，胡的機會太少。</li>
+    <li><b>他的牌越大越要棄。</b>他看起來 5 台以上（碰了好幾組字、在做一色），一近聽也該收。</li>
+    <li><b>聽牌幾乎都衝。</b>胡一把收的錢大約是放槍賠的兩倍。</li>
+    <li><b>棄胡也不是零風險。</b>守了之後還有 3–5% 會放槍，安全牌可能用完；先打他打過的牌，再打壁、字牌。</li>
+  </ul>
+  <div class="proof">
+    <p><b>實測：</b>2,500 個牌面，同樣的後續摸牌分兩條路打完。</p>
+    <p>聽牌時攻比守每局多 49–79 元；二近聽以上守比攻多 11–15 元；後段沒聽守比攻多 16 元；一近聽差不多。</p>
+    <p>照這張表打，比一直衝每局多 10 元、比一有人聽就棄胡多 12 元（1,800 局）。</p>
+  </div>
+</section>
+
+<section>
+  <p class="phase">結算</p>
+  <h2>看錢打牌</h2>
+  <ul>
+    <li>底 100／每台 20、平均台數：<b>胡一把約收 250 元，放槍約賠 126 元。</b>胡牌值放槍的兩倍，所以聽了就衝。</li>
+    <li>底大台小的桌，大牌跟小牌差不多錢：<b>能胡就胡</b>，別為了多一兩台放掉機會。</li>
+    <li>底台比例幾乎不改變攻守的界線，收的和賠的會一起變大。</li>
+    <li>莊家胡牌多收、放槍也多賠，對攻守影響很小；但別放槍給連莊多次的莊家，連幾次就多賠幾台。</li>
+  </ul>
+</section>
+
+<section>
+  <p class="phase">牌桌上</p>
+  <h2>禮儀</h2>
+  <ul>
+    <li>「吃」「碰」「胡」先喊再拿牌，喊大聲一點。</li>
+    <li>牌打出去不能收回。</li>
+    <li>胡了把牌攤開，大家一起算台。</li>
+    <li><b>手機收起來。</b>牌桌上查牌效會被當成作弊，算台吵起來時再拿出來大家一起看。</li>
+  </ul>
+</section>
+
+</div>
+
+<footer class="foot">
+  <p>數字來自電腦模擬牌局：照牌效打、會吃碰、會留中發白和自己的風。真人會做大牌、會騙牌，數字只是方向。</p>
+  <p>規則以常見台灣十六張為準，各家不同，以你家牌桌為主。</p>
+</footer>
+
+</div>
+</body>
+</html>
