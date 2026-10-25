@@ -345,7 +345,7 @@ section h3 { font-size: 17px; margin-top: 6px; }
       <thead><tr><th scope="col">誰</th><th scope="col">吃你</th><th scope="col">碰你</th><th scope="col">你吃他</th><th scope="col">實測後的盯法</th></tr></thead>
       <tbody>
         <tr><th scope="row">下家</th><td>能</td><td>能</td><td>—</td><td>只能順手盯，不要拆牌卡他</td></tr>
-        <tr><th scope="row">對家</th><td>—</td><td>能</td><td>—</td><td>不餵他碰：生張中發白、圈風早打，字牌先打熟張</td></tr>
+        <tr><th scope="row">對家</th><td>—</td><td>能</td><td>—</td><td>數字牌被碰最多一成；字牌牌效差不多時順手打熟張，不必為此改打法</td></tr>
         <tr><th scope="row">上家</th><td>—</td><td>能</td><td>能</td><td>不用留他打的那門；他剛打的牌拿來防守</td></tr>
       </tbody>
     </table>
@@ -374,25 +374,29 @@ section h3 { font-size: 17px; margin-top: 6px; }
       <li><b>順手盯可以。</b>兩張牌效差不多（進張差不到一成）時，打下家吃不到的那張：字牌、他自己打過的、旁邊的牌都被看光的。不花你的錢，下家胡牌率從 26% 降到 22%。</li>
     </ol>
   </div>
+  <div class="proof">
+    <p><b>下家會不會吃：</b>看那張牌旁邊還有幾種搭子沒被看光（例如五萬有三四、四六、六七三種）。6,000 局電腦牌局裡，三種都在 11%、兩種 8%、一種 5%、零種 0%；下家已經吃碰過的話是 16%、11%、7%。下家自己打過的牌，他幾乎不吃（1% 以下）。</p>
+  </div>
 
-  <h3>對家：他只能碰，所以盯字牌</h3>
-  <p>對家吃不到你，你餵他只有一條路：碰。3,000 局電腦牌局裡，打出一張牌被人碰走的機率：</p>
+  <h3>對家：他只能碰你</h3>
+  <p>對家吃不到你，你餵他只有一條路：碰。6,000 局電腦牌局裡，打出一張牌被人碰走的機率（「看到」包括桌上和你手上的）：</p>
   <div class="table-wrap">
     <table class="trap-table tactics">
       <thead><tr><th scope="col">你打的牌</th><th scope="col">前 6 巡</th><th scope="col">第 7 巡後</th></tr></thead>
       <tbody>
-        <tr class="hot"><th scope="row">生張中發白（一張都沒出現）</th><td class="bad">23.5%</td><td class="bad">45.8%</td></tr>
-        <tr class="hot"><th scope="row">生張風牌</th><td class="bad">14.5%</td><td class="bad">35.9%</td></tr>
-        <tr><th scope="row">數字牌</th><td colspan="2">5.1%</td></tr>
-        <tr><th scope="row">字牌已經出現 1 張</th><td class="ok">1–2%</td><td class="ok">4–5%</td></tr>
-        <tr><th scope="row">字牌已經出現 2 張以上</th><td class="ok">0%</td><td class="ok">0%</td></tr>
+        <tr class="hot"><th scope="row">生張中發白、圈風（一張都沒看到）</th><td class="bad">23%</td><td class="bad">44%</td></tr>
+        <tr class="hot"><th scope="row">生張的其他風牌</th><td class="bad">12%</td><td class="bad">27%</td></tr>
+        <tr><th scope="row">數字牌，一張都沒看到</th><td>8%</td><td>10%</td></tr>
+        <tr><th scope="row">數字牌，看到 1 張</th><td class="ok">3%</td><td class="ok">3%</td></tr>
+        <tr><th scope="row">字牌，看到 1 張</th><td class="ok">1–2%</td><td class="ok">3–6%</td></tr>
+        <tr><th scope="row">看到 2 張以上</th><td class="ok">0%</td><td class="ok">0%</td></tr>
       </tbody>
     </table>
   </div>
   <div class="trap-grid">
     <ol start="3">
-      <li><b>孤張的中發白、圈風早點打。</b>第 7 巡後再打，將近一半會被碰，碰了就有台；前 6 巡打只有兩成。</li>
-      <li><b>字牌先打熟張。</b>出現過一張的字，被碰機率掉到 5% 以下；出現兩張就碰不了了。</li>
+      <li><b>表是真的：</b>生張字牌後半段被碰的機率是前半段的兩倍；看到一張就掉到 6% 以下，兩張就碰不了。</li>
+      <li><b>但不用為了它改打法。</b>4,000 局實測：孤張中發白早丟或留著等成對，每局差 −2.6 ± 5.2 元（早丟還多被碰一點）；熟張字先打或生張字先打，差 0.0 ± 2.3 元（熟張先打少被碰，生張先打後面少放槍，剛好抵銷）。跟盯下家一樣，牌效差不多時順手打不會被碰的就好。</li>
     </ol>
     <ol start="5">
       <li><b>對家的門風沒有特別危險。</b>打對家、上家、下家的門風，被碰的機率都在 12% 左右；圈風（東風圈的東）約 27%，那才要小心。</li>
@@ -408,6 +412,7 @@ section h3 { font-size: 17px; margin-top: 6px; }
     </ol>
     <ol start="8">
       <li><b>真正要盯的是聽牌的人，不是下家。</b>有人聽了就看下面的攻守表。</li>
+      <li><b>練習：</b>app 的「練習 → 盯牌」練順手盯，「練習 → 兩家聽牌」練跟打和找共同現物。</li>
     </ol>
   </div>
 </section>

@@ -805,17 +805,22 @@
   // Four bots play from a fresh deal (I am the dealer, 東圈) until an opponent
   // is tenpai and it is my turn again (I just drew). Bots call 吃碰; I don't.
   // Hands where somebody already won are thrown away.
+  //   minTurn: the tenpai player has made at least this many discards
+  //   need: how many opponents must be tenpai (1 or more)
+  //   minShanten: my hand is at least this far from tenpai
   function simulateTable(random, options) {
     random = random || Math.random;
-    const minTurn = (options && options.minTurn) || 6;
+    const o = Object.assign({ minTurn: 6, need: 1, minShanten: -1 }, options);
     for (let attempt = 0; attempt < 300; attempt++) {
-      const table = playUntilTenpai(random, minTurn);
+      const table = playTable(random, o);
       if (table) return table;
     }
     return null;
   }
 
-  function playUntilTenpai(random, minTurn) {
+  // o.stopTurn instead stops at my draw before that discard (counting from 0) while nobody is tenpai
+  function playTable(random, o) {
+    const tenpaiSeats = bots => [1, 2, 3].filter(q => shanten(bots[q].c, bots[q].melds.length) === 0);
     const wall = shuffledWall(random);
     const bots = [0, 1, 2, 3].map(p => ({
       c: toCounts(wall.slice(p * 16, p * 16 + 16)), melds: [], river: [], called: [], value: valueHonors(p, 0),
@@ -830,13 +835,20 @@
       if (draw) {
         if (next >= end) return null;
         b.c[wall[next++]]++;
-        if (p === 0 && target > 0) break;
+        if (p === 0 && o.stopTurn != null && b.river.length === o.stopTurn) {
+          if (tenpaiSeats(bots).length || shanten(b.c, 0) === -1) return null;
+          break;
+        }
+        if (p === 0 && target > 0 && tenpaiSeats(bots).length >= o.need) {
+          if (shanten(b.c, 0) < o.minShanten) return null;
+          break;
+        }
         if (shanten(b.c, b.melds.length) === -1) return null;
       }
       const d = botDiscard(b.c, random, { called: b.melds.length, value: b.value, turn: b.river.length });
       b.c[d]--;
       b.river.push(d);
-      if (p > 0 && target < 0 && b.river.length >= minTurn && waits(fromCounts(b.c), b.melds.length).length) target = p;
+      if (o.stopTurn == null && p > 0 && target < 0 && b.river.length >= o.minTurn && waits(fromCounts(b.c), b.melds.length).length) target = p;
       for (let q = 0; q < 4; q++) {
         if (q === p) continue;
         bots[q].c[d]++;
@@ -878,13 +890,107 @@
       };
     });
     const me = fromCounts(bots[0].c);
+    // I just drew, so the last discard was 上家's and everybody passed on it (跟打)
+    const passed = bots[3].river.length ? bots[3].river[bots[3].river.length - 1] : null;
+    const table = { me, myRiver: bots[0].river, myCalled: bots[0].called, players, target, roundWind: 0, wallLeft: end - next, passed };
+    if (o.stopTurn != null) return table;
+    table.tenpai = tenpaiSeats(bots);
     // Only keep problems where the choice matters: some of my tiles deal in, some don't
     const danger = new Set();
     for (const pl of players) for (const t of pl.waits) danger.add(t);
     const kinds = new Set(me);
     const risky = [...kinds].filter(t => danger.has(t)).length;
     if (!risky || risky > kinds.size - 3) return null;
-    return { me, myRiver: bots[0].river, myCalled: bots[0].called, players, target, roundWind: 0, wallLeft: end - next };
+    return table;
+  }
+
+  // ============================================================
+  // 盯牌 (don't feed the table)
+  // ============================================================
+  // Measured from 6,000 bot games, from the discarder's point of view: the chance a
+  // discard gets 碰'd by anyone. Rows: copies the discarder can see besides this one
+  // (table + own hand: 0, 1, 2+); columns: first 6 discards, later.
+  const PUNG_RATE = {
+    number: [[0.081, 0.101], [0.026, 0.032], [0, 0]],
+    dragon: [[0.232, 0.443], [0.014, 0.04], [0, 0]],
+    roundWind: [[0.232, 0.438], [0.012, 0.032], [0, 0]],
+    wind: [[0.123, 0.273], [0.022, 0.062], [0, 0]],
+  };
+  // ...and the chance 下家 吃s it when nobody 碰s, by how many chow shapes around it are
+  // still possible (0-3, from what the discarder can see). Rows: 下家 closed / already called;
+  // inner rows: 下家 never threw this tile / threw it before.
+  const CHOW_RATE = [
+    [[0, 0.047, 0.082, 0.107], [0, 0.003, 0.006, 0.002]],
+    [[0, 0.066, 0.114, 0.161], [0, 0.004, 0.003, 0.005]],
+  ];
+
+  // Chow shapes around t whose two other tiles still have a copy out
+  function openChows(t, seen) {
+    if (t >= 27) return 0;
+    const left = x => 4 - (seen[x] || 0) > 0;
+    const r = t % 9;
+    let n = 0;
+    if (r >= 2 && left(t - 2) && left(t - 1)) n++;
+    if (r >= 1 && r <= 7 && left(t - 1) && left(t + 1)) n++;
+    if (r <= 6 && left(t + 1) && left(t + 2)) n++;
+    return n;
+  }
+
+  // Chance my discard t feeds somebody.
+  //   seen: counts I can see besides this discard (rivers, melds, the rest of my hand)
+  //   next: 下家 {river, melds}   turn: discards I made before this one   roundWind: 0-3
+  function feedRisk(t, o) {
+    const kind = t < 27 ? 'number' : t >= 31 ? 'dragon' : t - 27 === (o.roundWind || 0) ? 'roundWind' : 'wind';
+    const pung = PUNG_RATE[kind][Math.min(2, o.seen[t] || 0)][o.turn < 6 ? 0 : 1];
+    const open = openChows(t, o.seen);
+    const chow = t < 27 ? CHOW_RATE[o.next.melds.length ? 1 : 0][o.next.river.includes(t) ? 1 : 0][open] : 0;
+    return { pung, chow, total: pung + (1 - pung) * chow, open };
+  }
+
+  // Every discard at a 盯牌 table: speed first (lowest shanten, 進張 within 10% of the best),
+  // then how likely it feeds somebody. The answer is the efficient discard that feeds least.
+  function markOptions(tb) {
+    const c = toCounts(tb.me);
+    const vis = tableVisible(tb);
+    const remaining = vis.map(n => Math.max(0, 4 - n));
+    const next = tb.players.find(p => p.seat === 1);
+    const rows = [];
+    for (let t = 0; t < KINDS; t++) {
+      if (!c[t]) continue;
+      c[t]--;
+      const u = usefulTiles(c, 0, remaining);
+      c[t]++;
+      const seen = vis.slice();
+      seen[t]--;
+      rows.push({ tile: t, shanten: u.shanten, useful: u.total, feed: feedRisk(t, { seen, next, turn: tb.myRiver.length, roundWind: tb.roundWind }) });
+    }
+    const low = Math.min(...rows.map(r => r.shanten));
+    const top = Math.max(...rows.filter(r => r.shanten === low).map(r => r.useful));
+    for (const r of rows) r.efficient = r.shanten === low && r.useful >= 0.9 * top;
+    const ok = rows.filter(r => r.efficient);
+    const least = Math.min(...ok.map(r => r.feed.total));
+    for (const r of rows) r.best = r.efficient && r.feed.total <= least + MARK_TOLERANCE;
+    rows.sort((a, b) => (b.efficient - a.efficient) || (a.feed.total - b.feed.total) || (a.shanten - b.shanten) || (b.useful - a.useful));
+    return rows;
+  }
+  const MARK_TOLERANCE = 0.01;
+
+  // A mid-game table (my 4th to 11th discard, nobody tenpai yet) where marking matters:
+  // at least two efficient discards, and they feed noticeably differently
+  function markProblem(random) {
+    random = random || Math.random;
+    for (let attempt = 0; attempt < 300; attempt++) {
+      const tb = playTable(random, { stopTurn: 3 + Math.floor(random() * 8) });
+      if (!tb) continue;
+      const rows = markOptions(tb);
+      const ok = rows.filter(r => r.efficient);
+      if (ok.length < 2 || ok.length === rows.length) continue;
+      const feeds = ok.map(r => r.feed.total);
+      if (Math.max(...feeds) - Math.min(...feeds) < 0.04) continue;
+      tb.options = rows;
+      return tb;
+    }
+    return null;
   }
 
   // Every tile I can see at a simulated table (a claimed discard counts once, in the meld)
@@ -972,6 +1078,7 @@
   //   river:   his discards (claimed ones included)   melds: his called melds [{type, tile}]
   //   visible: counts of every tile I can see (my hand, all rivers, all melds)
   //   trickster: he keeps shapes next to what he throws on purpose (打五釣二), so don't discount them
+  //   passed: a tile he just passed on (上家's last discard, for 下家 and 對家): under 過水 he can't win on it this turn
   function guessWaits(o) {
     const random = o.random || Math.random;
     const melds = o.melds || [];
@@ -1005,6 +1112,7 @@
       for (const t of w) prob[t] += wt;
     }
     if (total) for (let t = 0; t < KINDS; t++) prob[t] /= total;
+    if (o.passed != null) prob[o.passed] = 0;
     return { prob, suitWeight: weight };
   }
 
@@ -1032,6 +1140,7 @@
     freshHonor: 0.36,   // an honor nobody has shown yet: the riskiest kind of honor (對碰 / 單吊)
     noCopy: 0.25,       // all other copies are visible: no 單吊 / 對碰
     lastCopy: 0.5,      // one copy left: 單吊 only
+    passed: 0,          // rule, not measured: he just passed on this tile (跟打), so under 過水 it can't win for him now
   };
 
   // Every shape that could win on tile t, and whether what I can see rules it out
@@ -1058,6 +1167,7 @@
     const out = [];
     const add = (key, extra) => out.push(Object.assign({ key, factor: CLUE_FACTORS[key] }, extra));
     const discarded = river.includes(t);
+    if (o.passed === t) add('passed');
     if (discarded) add('ownDiscard');
     if (t >= 27) add(o.visible[t] ? 'honor' : 'freshHonor');
     else {
@@ -1291,6 +1401,6 @@
     guessWaits, shapeWaits, tenpaiChance, CLUE_FACTORS, waitShapes, tileClues, discardClues, riverSuits,
     WIN_STATS, winChance, pushFold, foldThreshold, tenpaiSignal,
     defaultRules, decompositions, validateWin, scoreHand, dealerTai, settle,
-    rng, discardProblem, waitProblem,
+    rng, discardProblem, waitProblem, PUNG_RATE, CHOW_RATE, openChows, feedRisk, markOptions, markProblem,
   };
 });

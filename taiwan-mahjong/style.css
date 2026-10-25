@@ -520,6 +520,8 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
 .clue-factor { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); min-width: 4.5em; }
 .clue-list li > span:last-child { flex: 1 1 16em; min-width: 0; }
 .pf-line { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 13px; }
+.dl-opp { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 13px; }
+.dl-opp > span:first-of-type { font-variant-numeric: tabular-nums; min-width: 2.6em; }
 .plan { font-size: 12px; font-weight: 700; padding: 0 8px; border-radius: 999px; }
 .plan.push { background: var(--hot); color: var(--surface); }
 .plan.fold { background: var(--fold); color: var(--surface); }

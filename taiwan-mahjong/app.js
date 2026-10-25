@@ -59,7 +59,7 @@
       lastTile: false, kongBloom: false, robKong: false, heavenly: false, earthly: false, special: '',
       base: stakes.base, perTai: stakes.perTai, example: true,
     },
-    dr: { mode: 'discard', flush: false, problem: null, answer: null, picks: [] },
+    dr: { mode: 'discard', flush: false, problem: null, answer: null, picks: [], loading: false },
     df: { mode: 'sim', task: 'safe', table: null, read: null, reads: {}, answer: null, picks: [], loading: false, hint: null },
     dm: {
       river: tileList('1z 7z 6z 8s 1m 1p 8s 4z 1s 9p 8m 4s'), melds: [], mine: parseTiles('1234m123678899p5688s'),
@@ -70,6 +70,7 @@
     stats: {
       discard: savedStats.discard || newStats(), wait: savedStats.wait || newStats(),
       pushfold: Object.assign({ dealt: 0 }, savedStats.pushfold || newStats()), guess: savedStats.guess || newStats(),
+      mark: savedStats.mark || newStats(), safe2: Object.assign({ dealt: 0 }, savedStats.safe2 || newStats()),
     },
   };
 
@@ -206,7 +207,7 @@
       $('#view-' + t).hidden = t !== tab;
       $('#tab-' + t).setAttribute('aria-selected', String(t === tab));
     }
-    if (tab === 'drill' && !S.dr.problem) newProblem();
+    if (tab === 'drill' && !S.dr.problem && !S.dr.loading) newProblem();
     renderers[tab]();
     if (!skipHash) {
       try { history.replaceState(null, '', '#' + tab); } catch (e) { /* sandboxed */ }
@@ -427,6 +428,7 @@
     freshHonor: { chip: '生張字', say: () => '這張字牌一張都還沒出現，是字牌裡最危險的一種（電腦牌局 1.8%；已經出現兩張的只有 0.4%），可能是他的對碰或單吊。' },
     noCopy: { chip: '他沒有這張', say: () => '這張四張都在看得到的地方（含你手上的），他不可能有：不會被單吊或對碰。' },
     lastCopy: { chip: '只剩 1 張', say: () => '外面只剩 1 張，他最多單吊這張，不會對碰。' },
+    passed: { chip: '跟打', say: () => '上家剛打這張，他放過了沒胡。有過水規則的桌，他下次摸牌前不能胡這張。' },
   };
 
   function factorText(f) {
@@ -456,7 +458,7 @@
   }
 
   function whyHTML(t, ctx, p) {
-    const clues = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster });
+    const clues = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster, passed: ctx.passed });
     const list = clues.map(c => `<li>${clueChipHTML(c)}<span class="clue-factor">${factorText(c.factor)}</span><span>${CLUE_TEXT[c.key].say(c, t)}</span></li>`).join('');
     return `<details class="why"><summary>為什麼是 ${pct(p)}</summary>
       <p class="hint">誰能用什麼聽法胡${M.tileName(t)}：</p>
@@ -472,7 +474,7 @@
     const max = Math.max(0.01, ...rows.map(r => r.p));
     return '<ul class="dlist">' + rows.map(({ t, p }) => {
       const hit = ctx.actual && ctx.actual.includes(t);
-      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster }).map(clueChipHTML).join('');
+      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster, passed: ctx.passed }).map(clueChipHTML).join('');
       return `<li class="dl-row${hit ? ' hit' : ''}${ctx.chosen === t ? ' chosen' : ''}">
         ${tileHTML(t, { size: 'sm' })}
         <div class="dl-main">
@@ -574,7 +576,7 @@
     const d = S.df;
     if (!d.reads[seat]) {
       const p = d.table.players.find(x => x.seat === seat);
-      d.reads[seat] = M.guessWaits({ river: p.river, melds: p.melds, visible: M.tableVisible(d.table) });
+      d.reads[seat] = M.guessWaits({ river: p.river, melds: p.melds, visible: M.tableVisible(d.table), passed: passedFor(d.table, seat) });
     }
     return d.reads[seat];
   }
@@ -584,6 +586,9 @@
     if (d.table && !d.read) d.read = readFor(d.table.target);
     return d.read;
   }
+
+  // 上家's last discard went past 下家 and 對家 (跟打); for 上家 himself it is just his own discard
+  const passedFor = (tb, seat) => (seat === 3 ? null : tb.passed);
 
   // The tenpai target for sure; the other two only as likely as their turn count and melds say
   function tableThreats(tb) {
@@ -610,17 +615,6 @@
 
     const tb = d.table;
     const tgt = targetOf(tb);
-    // Claimed discards stay in the river, faded, so the discard order is still readable
-    const riverRow = (name, river, called, melds, isTarget) => `
-      <div class="river-row${isTarget ? ' target' : ''}">
-        <div class="river-head"><b>${name}</b>${isTarget ? '<span class="badge hot">聽牌了</span>' : ''}<span class="hint">打了 ${river.length} 張</span></div>
-        <div class="river-body">
-          <div class="tiles tight">${river.map((t, i) => tileHTML(t, called.includes(i) ? { size: 'sm', cls: 'called', label: M.tileName(t) + '（被吃碰走）' } : { size: 'sm' })).join('')}</div>
-          ${melds.length ? `<div class="river-melds">${melds.map(meldChipHTML).join('')}</div>` : ''}
-        </div>
-      </div>`;
-    const rivers = tb.players.map(p => riverRow(p.name, p.river, p.called, p.melds, p.seat === tb.target)).join('') +
-      riverRow('我', tb.myRiver, tb.myCalled, [], false);
     const read = `<h3>讀${tgt.name}的河</h3>${riverReadHTML(tgt.river, tgt.called, d.hint, 'df-hint')}`;
     const info = `<div class="table-info"><span>第 ${tgt.river.length} 巡</span><span>牌牆剩 ${tb.wallLeft} 張</span><span>電腦照牌效打，會吃碰，留中發白跟自己的風</span></div>`;
     const myHand = M.sortTiles(tb.me);
@@ -653,7 +647,22 @@
     } else {
       body = guessRevealHTML();
     }
-    return top + info + `<div class="rivers">${rivers}</div>` + read + body;
+    return top + info + riversHTML(tb, [tb.target]) + read + body;
+  }
+
+  // Every river at a simulated table. Claimed discards stay in the river, faded, so the
+  // discard order is still readable. `tenpai`: seats to badge.
+  function riversHTML(tb, tenpai) {
+    const row = (name, river, called, melds, hot) => `
+      <div class="river-row${hot ? ' target' : ''}">
+        <div class="river-head"><b>${name}</b>${hot ? '<span class="badge hot">聽牌了</span>' : ''}<span class="hint">打了 ${river.length} 張</span></div>
+        <div class="river-body">
+          <div class="tiles tight">${river.map((t, i) => tileHTML(t, called.includes(i) ? { size: 'sm', cls: 'called', label: M.tileName(t) + '（被吃碰走）' } : { size: 'sm' })).join('')}</div>
+          ${melds.length ? `<div class="river-melds">${melds.map(meldChipHTML).join('')}</div>` : ''}
+        </div>
+      </div>`;
+    return '<div class="rivers">' + tb.players.map(p => row(p.name, p.river, p.called, p.melds, tenpai.includes(p.seat))).join('') +
+      row('我', tb.myRiver, tb.myCalled, [], false) + '</div>';
   }
 
   function meldChipHTML(m) {
@@ -697,7 +706,7 @@
     return '<ul class="dlist">' + pf.rows.map((r, i) => {
       const t = r.tile;
       const hit = ctx.actual && ctx.actual.includes(t);
-      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster }).map(clueChipHTML).join('');
+      const chips = M.tileClues(t, { river: ctx.river, visible: ctx.visible, trickster: ctx.trickster, passed: ctx.passed }).map(clueChipHTML).join('');
       const isBest = r.ev >= pf.best.ev - ctx.tolerance;
       return `<li class="dl-row pf-row${isBest ? ' best' : ''}${hit ? ' hit' : ''}${ctx.chosen === t ? ' chosen' : ''}">
         ${tileHTML(t, { size: 'sm' })}
@@ -729,7 +738,7 @@
       </div>
       ${handsRevealHTML(tb)}
       <h3>每張牌的攻守（照台數頁的底 ${money(S.sc.base)}／每台 ${money(S.sc.perTai)}，你是莊家）</h3>
-      ${pushFoldListHTML(pf, { river: targetOf(tb).river, visible, actual, chosen: a.tile, tolerance: a.tolerance })}
+      ${pushFoldListHTML(pf, { river: targetOf(tb).river, visible, actual, chosen: a.tile, tolerance: a.tolerance, passed: passedFor(tb, tb.target) })}
       <p class="hint">期望值 ＝ 胡牌率 × 胡了收的錢 − 放槍率 × 放槍賠的錢 − 之後再放槍的風險。別人自摸要付的錢不管攻守都一樣，沒算進去。胡牌率、之後放槍的機率、平均台數都是電腦牌局量的。</p>
       <div class="drill-actions"><button type="button" class="btn" data-act="df-new">下一局</button></div>`;
   }
@@ -1299,7 +1308,32 @@
     const d = S.dr;
     d.answer = null;
     d.picks = [];
+    if (d.mode === 'mark' || d.mode === 'safe2') return newDrillTable();
     d.problem = d.mode === 'discard' ? { hand: M.discardProblem() } : M.waitProblem(Math.random, d.flush);
+  }
+
+  // 盯牌 / 兩家聽牌 deal a whole table, so let the loading state paint first
+  function newDrillTable() {
+    const d = S.dr;
+    const mode = d.mode;
+    Object.assign(d, { problem: null, loading: true });
+    setTimeout(() => {
+      let problem;
+      if (mode === 'mark') problem = M.markProblem(Math.random);
+      else {
+        problem = M.simulateTable(Math.random, { need: 2, minShanten: 1 });
+        if (problem) {
+          const visible = M.tableVisible(problem);
+          problem.threats = problem.players.filter(p => problem.tenpai.includes(p.seat)).map(p => ({
+            seat: p.seat, name: p.name, river: p.river,
+            prob: M.guessWaits({ river: p.river, melds: p.melds, visible, passed: passedFor(problem, p.seat) }).prob,
+          }));
+        }
+      }
+      if (d.mode !== mode) return;
+      Object.assign(d, { problem, loading: false });
+      if (S.tab === 'drill') renderDrill();
+    }, 30);
   }
 
   function record(key, good) {
@@ -1317,15 +1351,168 @@
 
   function renderDrill() {
     const d = S.dr;
-    $('#dr-mode').innerHTML = segHTML('dr-mode', [['discard', '打哪張'], ['wait', '聽什麼']], d.mode);
+    $('#dr-mode').innerHTML = segHTML('dr-mode', [['discard', '打哪張'], ['wait', '聽什麼'], ['mark', '盯牌'], ['safe2', '兩家聽牌']], d.mode);
     const flush = $('#dr-flush');
     flush.hidden = d.mode !== 'wait';
     flush.innerHTML = segHTML('dr-flush', [['0', '混合'], ['1', '清一色']], d.flush ? '1' : '0');
     const st = S.stats[d.mode];
     $('#dr-stats').innerHTML = st.n
-      ? `答了 <b>${st.n}</b> 題・答對 <b>${Math.round((st.good / st.n) * 100)}%</b>・連對 <b>${st.streak}</b>（最高 ${st.best}）`
+      ? `答了 <b>${st.n}</b> 題・答對 <b>${Math.round((st.good / st.n) * 100)}%</b>・連對 <b>${st.streak}</b>（最高 ${st.best}）${d.mode === 'safe2' ? `・放槍 ${st.dealt || 0} 次` : ''}`
       : '還沒開始。答對率存在這台裝置上。';
-    $('#dr-body').innerHTML = d.mode === 'discard' ? drillDiscardHTML() : drillWaitHTML();
+    const body = { discard: drillDiscardHTML, wait: drillWaitHTML, mark: drillMarkHTML, safe2: drillSafe2HTML }[d.mode];
+    $('#dr-body').innerHTML = body();
+  }
+
+  function drillTableWaitHTML() {
+    if (S.dr.loading) return '<p class="loading">洗牌，四家打牌中…</p>';
+    return `<p>這次沒洗到合適的牌局。</p><div class="drill-actions"><button type="button" class="btn" data-act="dr-next">再洗一次</button></div>`;
+  }
+
+  const speedText = r => (r.shanten === 0 ? `聽牌，${r.useful} 張` : `${shantenName(r.shanten)}，進張 ${r.useful} 張`);
+
+  // ---------- 盯牌 ----------
+  function drillMarkHTML() {
+    const { problem: tb, answer } = S.dr;
+    if (!tb) return drillTableWaitHTML();
+    const info = `<div class="table-info"><span>你的第 ${tb.myRiver.length + 1} 巡</span><span>牌牆剩 ${tb.wallLeft} 張</span><span>還沒有人聽牌</span></div>`;
+    if (!answer) {
+      return info + riversHTML(tb, []) + `<p class="prompt">輪到你，剛摸完牌。打哪張？</p>
+        <div class="tiles">${tb.me.map(t => tileHTML(t, { act: 'dr-mark', label: '打' + M.tileName(t) })).join('')}</div>
+        <p class="hint">牌效第一；幾張差不多快時，打最不會被吃、被碰的那張。只有下家能吃你的牌，碰誰都能碰。</p>`;
+    }
+    const rows = tb.options;
+    const chosen = rows.find(r => r.tile === answer.tile);
+    const best = rows.filter(r => r.best);
+    const fast = rows.filter(r => r.efficient);
+    const name = M.tileName(answer.tile);
+    const big = { good: '順手盯到了！', ok: '牌效對，但可以順手盯', bad: '拆到牌了' }[answer.grade];
+    let sub;
+    if (answer.grade === 'good') sub = `打${name}：${speedText(chosen)}，被吃碰的機率 ${pct(chosen.feed.total)}，是夠快的打法裡最低的。`;
+    else if (answer.grade === 'ok') sub = `打${name}一樣快，但被吃碰的機率 ${pct(chosen.feed.total)}。打${namesList(best.map(r => r.tile), 3)}也一樣快，只有 ${pct(best[0].feed.total)}。`;
+    else sub = `打${name}：${speedText(chosen)}。最快是打${namesList(fast.map(r => r.tile), 4)}：${speedText(fast[0])}，其中打${namesList(best.map(r => r.tile), 3)}最不會被吃碰（${pct(best[0].feed.total)}）。牌效先顧好，盯牌只能順手：為了盯而拆牌，實測每局虧 15 元以上。`;
+    const shown = rows.filter(r => r.efficient || r === chosen);
+    const list = '<ul class="dlist">' + shown.map(r => `<li class="dl-row${r.best ? ' best' : ''}${r === chosen ? ' chosen' : ''}">
+        ${tileHTML(r.tile, { size: 'sm' })}
+        <div class="dl-main">
+          <div class="pf-line"><span>打完${speedText(r)}</span><span>下家吃 ${pct(r.feed.chow)}</span><span>被碰 ${pct(r.feed.pung)}</span></div>
+          <div class="dl-tags">${feedReasons(r, tb).map(x => `<span>${x}</span>`).join('')}${r.efficient ? '' : '<b class="badge hot">拆牌</b>'}${r.best ? '<b class="badge">最佳</b>' : ''}${r === chosen ? '<b class="badge warn">你打的</b>' : ''}</div>
+        </div>
+        <span class="dl-pct">${pct(r.feed.total)}</span>
+      </li>`).join('') + '</ul>';
+    const truth = [answer.tile, ...best.map(r => r.tile).filter(t => t !== answer.tile).slice(0, 1)].map(t => actualFeedText(tb, t)).join('<br>');
+    return `<div class="feedback ${answer.grade}"><p class="big">${big}</p><p>${sub}</p><p class="hint">實際上：${truth}</p></div>
+      ${pickedHandHTML(tb.me, answer.tile)}
+      ${info}${riversHTML(tb, [])}
+      <h3>夠快的打法，各自被吃碰的機率</h3>
+      ${list}
+      <p class="hint">「夠快」＝幾近聽最少、進張差不到一成。下家吃、被碰的機率是 6,000 局電腦牌局量的，只看你看得到的牌。實測順手盯不花錢，下家胡牌率從 26% 降到 22%。</p>
+      <h3>三家的手牌</h3>
+      <div class="reveal">${tb.players.map(p => `<div class="reveal-row"><b>${p.name}</b>${groupHTML(p.hand)}${p.melds.map(meldChipHTML).join('')}</div>`).join('')}</div>
+      <div class="drill-actions"><button type="button" class="btn" data-act="dr-next">下一題</button></div>`;
+  }
+
+  // My hand with the tile I threw marked
+  function pickedHandHTML(hand, tile) {
+    let picked = false;
+    return `<div class="tiles">${hand.map(t => {
+      const mark = !picked && t === tile;
+      if (mark) picked = true;
+      return tileHTML(t, { cls: mark ? 'picked' : '' });
+    }).join('')}</div>`;
+  }
+
+  // Why a discard is easy or hard to claim, in a few words
+  function feedReasons(r, tb) {
+    const t = r.tile;
+    const out = [];
+    const seen = M.tableVisible(tb)[t] - 1;
+    if (t >= 27) {
+      out.push(seen === 0 ? '生張字' : seen === 1 ? '出現過 1 張' : '出現過 2 張以上');
+      if (t >= 31) out.push('有台的字');
+      return out;
+    }
+    const next = tb.players.find(p => p.seat === 1);
+    if (next.river.includes(t)) out.push('下家打過');
+    out.push(r.feed.open ? `下家能吃的搭子 ${r.feed.open} 種` : '下家吃不到');
+    if (next.melds.length) out.push('下家已吃碰');
+    return out;
+  }
+
+  // What the hidden hands could actually do with tile t
+  function actualFeedText(tb, t) {
+    const c = M.toCounts(tb.players.find(p => p.seat === 1).hand);
+    const r = t % 9;
+    let shape = null;
+    if (t < 27) {
+      if (r >= 2 && c[t - 2] && c[t - 1]) shape = [t - 2, t - 1];
+      else if (r >= 1 && r <= 7 && c[t - 1] && c[t + 1]) shape = [t - 1, t + 1];
+      else if (r <= 6 && c[t + 1] && c[t + 2]) shape = [t + 1, t + 2];
+    }
+    const pung = tb.players.filter(p => M.toCounts(p.hand)[t] >= 2).map(p => p.name);
+    const bits = [];
+    if (shape) bits.push(`下家有${namesList(shape, 2)}能吃`);
+    if (pung.length) bits.push(`${pung.join('、')}有一對能碰`);
+    return `打${M.tileName(t)}，${bits.length ? bits.join('，') : '沒人能吃碰'}。`;
+  }
+
+  // ---------- 兩家聽牌 ----------
+  // Chance a tile deals in to at least one of the tenpai players
+  function combinedDanger(tb) {
+    return [...Array(M.KINDS).keys()].map(t => 1 - tb.threats.reduce((a, x) => a * (1 - x.prob[t]), 1));
+  }
+
+  function drillSafe2HTML() {
+    const { problem: tb, answer } = S.dr;
+    if (!tb) return drillTableWaitHTML();
+    const sh = M.shanten(M.toCounts(tb.me), 0);
+    const names = tb.threats.map(x => x.name).join('、');
+    const info = `<div class="table-info"><span>第 ${tb.myRiver.length + 1} 巡</span><span>牌牆剩 ${tb.wallLeft} 張</span><span>上家剛打${M.tileName(tb.passed)}</span></div>`;
+    if (!answer) {
+      return info + riversHTML(tb, tb.tenpai) + `<p class="prompt">${names}都聽牌了，你還${shantenName(sh)}。全力防守：打哪張？</p>
+        <div class="tiles">${tb.me.map(t => tileHTML(t, { act: 'dr-safe2', label: '打' + M.tileName(t) })).join('')}</div>
+        <p class="hint">要對每一家都安全才算安全。淡掉的牌是被吃碰走的。</p>`;
+    }
+    const danger = combinedDanger(tb);
+    const kinds = [...new Set(tb.me)].sort((a, b) => danger[a] - danger[b] || a - b);
+    const least = danger[kinds[0]];
+    const safest = kinds.filter(t => danger[t] <= least + 0.01);
+    const name = M.tileName(answer.tile);
+    const big = { good: '最安全！', ok: '差一點', bad: '太危險' }[answer.grade];
+    const truth = answer.dealtTo.length ? `實際上打${name}放槍給${answer.dealtTo.join('、')}了。` : `實際上打${name}沒放槍。`;
+    const follow = tb.me.includes(tb.passed)
+      ? `這局手上有上家剛打的${M.tileName(tb.passed)}（跟打）：下家、對家剛放過它，對上家是現物。`
+      : `這局手上沒有上家剛打的${M.tileName(tb.passed)}，只能找共同的現物、壁、熟張。`;
+    const visible = M.tableVisible(tb);
+    const max = Math.max(0.01, ...kinds.map(t => danger[t]));
+    const list = '<ul class="dlist">' + kinds.map(t => {
+      const hitBy = tb.players.filter(p => p.waits.includes(t)).map(p => p.name);
+      const per = tb.threats.map(x => {
+        const chips = M.tileClues(t, { river: x.river, visible, passed: passedFor(tb, x.seat) })
+          .sort((a, b) => Math.abs(Math.log(b.factor || 1e-3)) - Math.abs(Math.log(a.factor || 1e-3))).slice(0, 3).map(clueChipHTML).join('');
+        return `<div class="dl-opp"><b>${x.name}</b><span>${pct(x.prob[t])}</span>${chips}</div>`;
+      }).join('');
+      return `<li class="dl-row${hitBy.length ? ' hit' : ''}${t === answer.tile ? ' chosen' : ''}">
+        ${tileHTML(t, { size: 'sm' })}
+        <div class="dl-main">
+          <span class="meter"><b style="width:${Math.round((danger[t] / max) * 100)}%"></b></span>
+          ${per}
+          <div class="dl-tags">${hitBy.length ? `<b class="badge hot">放槍給${hitBy.join('、')}</b>` : ''}${t === answer.tile ? '<b class="badge warn">你打的</b>' : ''}</div>
+        </div>
+        <span class="dl-pct">${pct(danger[t])}</span>
+      </li>`;
+    }).join('') + '</ul>';
+    return `<div class="feedback ${answer.grade}"><p class="big">${big}</p>
+        <p>你打${name}：對${names}合起來放槍 ${pct(danger[answer.tile])}。最安全是打${namesList(safest, 3)}：${pct(least)}。</p>
+        <p>${follow}</p>
+        <p class="hint">${truth}</p>
+      </div>
+      ${pickedHandHTML(tb.me, answer.tile)}
+      ${info}${riversHTML(tb, tb.tenpai)}
+      ${handsRevealHTML(tb)}
+      <h3>你每張牌對每一家的危險度</h3>
+      ${list}
+      <p class="hint">合起來的放槍率 ＝ 1 −（每一家都不放槍的機率相乘）。只有一家聽時，手上通常有他的現物（84%）；兩家以上聽，對大家都安全的現物只有 24% 的機會有，跟打上家再多 16%。</p>
+      <div class="drill-actions"><button type="button" class="btn" data-act="dr-next">下一題</button></div>`;
   }
 
   function drillDiscardHTML() {
@@ -1402,6 +1589,33 @@
   }
 
   actions['dr-mode'] = v => { S.dr.mode = v; newProblem(); renderDrill(); };
+  actions['dr-mark'] = v => {
+    const d = S.dr;
+    if (d.answer || !d.problem) return;
+    const tile = Number(v);
+    const r = d.problem.options.find(x => x.tile === tile);
+    const grade = r.best ? 'good' : r.efficient ? 'ok' : 'bad';
+    d.answer = { tile, grade };
+    record('mark', grade === 'good');
+    renderDrill();
+  };
+  actions['dr-safe2'] = v => {
+    const d = S.dr;
+    if (d.answer || !d.problem) return;
+    const tb = d.problem;
+    const tile = Number(v);
+    const danger = combinedDanger(tb);
+    const least = Math.min(...tb.me.map(t => danger[t]));
+    const grade = danger[tile] <= least + 0.01 ? 'good' : danger[tile] <= least + 0.04 ? 'ok' : 'bad';
+    const dealtTo = tb.players.filter(p => p.waits.includes(tile)).map(p => p.name);
+    d.answer = { tile, grade, dealtTo };
+    record('safe2', grade === 'good');
+    if (dealtTo.length) {
+      S.stats.safe2.dealt = (S.stats.safe2.dealt || 0) + 1;
+      store.set('stats', S.stats);
+    }
+    renderDrill();
+  };
   actions['dr-flush'] = v => { S.dr.flush = v === '1'; newProblem(); renderDrill(); };
   actions['dr-next'] = () => { newProblem(); renderDrill(); };
   actions['dr-discard'] = v => {

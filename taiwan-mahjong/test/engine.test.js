@@ -383,3 +383,45 @@ test('one-chance, 間四間, fresh honors and the mid-game tenpai signal', () =>
   assert.ok(M.tenpaiSignal(tiles('5p')[0], 8).chance > M.tenpaiSignal(tiles('3z')[0], 8).chance);
   assert.equal(M.tenpaiSignal(tiles('5p')[0], 3), null);
 });
+
+test('跟打: the tile 上家 just threw is safe against the players who passed on it', () => {
+  const tb = M.simulateTable(M.rng(41), { need: 2, minShanten: 1 });
+  assert.ok(tb.tenpai.length >= 2);
+  assert.ok(M.shanten(M.toCounts(tb.me), 0) >= 1);
+  const up = tb.players.find(p => p.seat === 3);
+  assert.equal(tb.passed, up.river[up.river.length - 1]);
+  // Nobody won on it, so it is not a winning tile for 下家 or 對家
+  for (const p of tb.players) if (p.seat !== 3) assert.ok(!p.waits.includes(tb.passed));
+  const visible = M.tableVisible(tb);
+  const next = tb.players.find(p => p.seat === 1);
+  const read = M.guessWaits({ river: next.river, melds: next.melds, visible, passed: tb.passed, random: M.rng(2), samples: 200 });
+  assert.equal(read.prob[tb.passed], 0);
+  assert.ok(M.tileClues(tb.passed, { river: next.river, visible, passed: tb.passed }).some(c => c.key === 'passed' && c.factor === 0));
+});
+
+test('盯牌: chow shapes, feed risk and the marking answer', () => {
+  const none = M.toCounts([]);
+  assert.equal(M.openChows(tiles('5m')[0], none), 3);
+  assert.equal(M.openChows(tiles('1m')[0], none), 1);
+  assert.equal(M.openChows(tiles('5z')[0], none), 0);
+  // All four 四萬 visible: only 67 can still take 五萬
+  assert.equal(M.openChows(tiles('5m')[0], M.toCounts(tiles('4444m'))), 1);
+  const next = { river: [], melds: [] };
+  const fresh = M.feedRisk(tiles('5z')[0], { seen: none, next, turn: 8 });
+  const dead = M.feedRisk(tiles('5z')[0], { seen: M.toCounts(tiles('55z')), next, turn: 8 });
+  assert.equal(fresh.chow, 0);
+  assert.equal(dead.pung, 0);
+  assert.ok(fresh.pung > 0.2);
+  assert.ok(M.feedRisk(tiles('5z')[0], { seen: none, next, turn: 2 }).pung < fresh.pung);
+  // More open chow shapes, more chows for 下家
+  assert.ok(M.feedRisk(tiles('5m')[0], { seen: none, next, turn: 4 }).chow > M.feedRisk(tiles('1m')[0], { seen: none, next, turn: 4 }).chow);
+
+  const tb = M.markProblem(M.rng(7));
+  const ok = tb.options.filter(r => r.efficient);
+  assert.ok(ok.length >= 2 && tb.players.every(p => !p.waits.length));
+  const least = Math.min(...ok.map(r => r.feed.total));
+  for (const r of tb.options) {
+    if (r.best) assert.ok(r.efficient && r.feed.total <= least + 0.01);
+  }
+  assert.ok(tb.options.some(r => r.best));
+});
